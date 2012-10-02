@@ -1,0 +1,29 @@
+v0.1: Barely Usable
+===================
+
+Basic REPL:
+	 scan [folder]
+	 search "free text"
+	 search artist:"El-P" track:"True Story"
+
+
+SQL: use korma (http://sqlkorma.com)?
+JSON: clojure-contrib/json
+
+v0.2: Something decent
+======================
+Zeroconf: receive Tomahawk broadcasts, send out broadcasts
+Tomahawk Protocol support: basic db commands
+
+v0.3: Now I want it on my LAN
+=============================
+File Streaming
+Resolver shim (external c++/qtwebkit wrapper around js resolvers, w/ unified stdout API)
+
+v0.4: Browser oh baby
+=====================
+HTTP API
+
+v0.5: Get talking
+=================
+XMPP support
