@@ -1,7 +1,7 @@
 Ono
 ===
 
-Ono is a headless [http://www.gettomahawk.com][Tomahawk] daemon. It scans your music, talks to other Tomahawks 
+Ono is a headless [Tomahawk](http://www.gettomahawk.com) daemon. It scans your music, talks to other Tomahawks 
 on the network (and in the future will support Jabber and Twitter SIP). 
 
 It is written in Clojure, and was is my attempt to get familiar with the language.
