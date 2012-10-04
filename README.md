@@ -1,10 +1,10 @@
 Ono
 ===
 
-Ono is a headless [Tomahawk](http://www.gettomahawk.com) daemon. It scans your music, talks to other Tomahawks 
-on the network (and in the future will support Jabber and Twitter SIP). 
+Ono is a headless [Tomahawk](http://www.gettomahawk.com) daemon. It scans your music, 
+talks to other Tomahawks on the network (and in the future will support Jabber and Twitter SIP). 
 
-It is written in Clojure, and was is my attempt to get familiar with the language.
+It is written in Clojure, and is my attempt to get familiar with the language.
 
 Usage
 =====
@@ -16,6 +16,6 @@ If you wish to compile it yourself, clone the repo and run it with `lein trampol
 License
 =======
 
-Copyright (C) 2012 Leo Franchi <lfranchi@kde.org>
+Copyright (C) 2012 Leo Franchi, <lfranchi@kde.org>
 
 Distributed under the GPLv3. See COPYING for more details.
