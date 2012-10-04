@@ -2,13 +2,10 @@ v0.1: Barely Usable
 ===================
 
 Basic REPL:
-	 scan [folder]
-	 search "free text"
-	 search artist:"El-P" track:"True Story"
-
-
-SQL: use korma (http://sqlkorma.com)?
-JSON: clojure-contrib/json
+	 scan [folder] 						         => scans folder recursively for music
+	 numfiles               				     => prints out number of files in db
+	 search "free text"	    					 => does a free-text search in db
+	 search artist:"El-P" track:"True Story"	 => does a specific track resolve
 
 v0.2: Something decent
 ======================
@@ -27,3 +24,12 @@ HTTP API
 v0.5: Get talking
 =================
 XMPP support
+
+Interesting Libraries:
+======================
+SQL: use korma (http://sqlkorma.com)?
+JSON: https://github.com/dakrone/cheshire
+full-text search: lucene wrapper https://github.com/weavejester/clucy
+file watcher: https://github.com/ibdknox/watchtower
+
+list of clojure libs: http://www.clojure-toolbox.com/
