@@ -1,41 +1,69 @@
 (ns ono.core
-    (:use ono.db)
-    (:use [cheshire.core :only (parse-string)])
-    (:use [fs.core :only (exists?, mkdir, create, walk, file)])
-    (:use [korma.db])
+    (:require [ono.db :as db])
+    (:require [cheshire.core :as json])
+    (:require [fs.core :as fs])
+    (:import [org.jaudiotagger.audio])
+    (:import [org.jaudiotagger.tag])
     (:gen-class))
 
-; Constants
+;; Constants
 (def configDir (str (System/getProperty "user.home") "/.ono"))
 (def confFile (str configDir "/config"))
 (def dbFile (str configDir "/db.sqlite3"))
+(def supportedSuffixes #{".mp3" ".flac" ".ogg" ".mp4"})
 
-; Globals
+;; Globals
 (def config (ref {}))
 
 (defn- setup
     "Loads configuration and database"
     []
-    ; Create files if they don't exist yet
-    (if (not (exists? configDir))
-        (mkdir configDir))
-    (if (not (exists? confFile))
-        (create (file confFile)))
+    ;; Create files if they don't exist yet
+    (if (not (fs/exists? configDir))
+        (fs/mkdir configDir))
+    (if (not (fs/exists? confFile))
+        (fs/create (fs/file confFile)))
     (dosync
-        (ref-set config (parse-string (slurp confFile)))))
+        (ref-set config (json/parse-string (slurp confFile)))))
     
-    (setupdb dbFile)
+    (db/setupdb dbFile)
+
+(defn- extractID3
+    "Extracts basic ID3 info from a file"
+    [f]
+    (if (contains? supportedSuffixes (last (fs/split-ext f)))
+        (let [fd (fs/file f)
+              audio (org.jaudiotagger.audio.AudioFileIO/read fd)
+              tag (.getTag audio)
+              header (.getAudioHeader audio)]
+            {:title  (.getFirst tag org.jaudiotagger.tag.FieldKey/TITLE)
+              :artist (.getFirst tag org.jaudiotagger.tag.FieldKey/ARTIST)
+              :album  (.getFirst tag org.jaudiotagger.tag.FieldKey/ALBUM)
+              :year   (.getFirst tag org.jaudiotagger.tag.FieldKey/YEAR)
+              :track  (.getFirst tag org.jaudiotagger.tag.FieldKey/TRACK)
+              :duration (.getTrackLength header)
+              :bitrate (.getSampleRateAsNumber header)
+              :mtime  (fs/mod-time fd)
+              :size   (fs/size fd)
+              :file   f
+              :source nil})))
 
 ;; Scanner
-(defn scan
+(defn- scan
     "Scans a desired folder recursively for any audio files we can recognize.
      Parses the ID3 tags and inserts into the database."
      [folder]
      (println (str "Scanning folder " folder))
-     (walk (fn [r dirs files]
-       ; (println (str "Walking " r dirs files)))
-        (println "OHAI"))
+     ;; jaudiotagger is super verbose on stderr
+     (let [os System/err] 
+        (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null")))
+        (dorun (fs/walk (fn [r dirs files]
+                    (db/addFiles (filter #(not (empty? %)) ;; Remove files with no tags
+                                   (map (fn [f]
+                                     (extractID3 (fs/file r f)))
+                                      files))))
         folder))
+     (System/setErr os)))
 
 (defn handle [input]
     (cond 
