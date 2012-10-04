@@ -76,6 +76,8 @@ numfiles:                     Return how many files are in the db
 search \"track\" \"artist\":      Search for a desired track/artist pair")
         (and (> (count input) 4) (= (subs input 0 4) "scan"))
             (scan (second (clojure.string/split input #" ")))
+        (and (> (count input) 7) (= (subs input 0 8) "numfiles"))
+            (println (db/numfiles))
         :else
             (println "No such command!")))
 

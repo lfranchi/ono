@@ -10,11 +10,6 @@
     [fields]
     (assoc fields :sortname (:name fields))) ;; For now don't actually calculate the sortname
 
-(defn prepareFile
-    ""
-    [fields]
-    fields)
-
 (defn setupdb
     "Sets up the db connection and relations"
     [dbFile]
@@ -55,7 +50,7 @@
 
 ;;    (insert track (values {:name "Some Track" :artist "Artist Name"})))
 
-(defn getArtist
+(defn- getArtist
     "Returns the artist id for a given name, or creates one if it doesn't exist yet"
     [artistName]
     (if-let [id (first (select artist
@@ -64,7 +59,7 @@
       (id :id) ;; Have an id, return it directly
       (first (vals (insert artist (values {:name artistName})))))) ;; Not here yet, insert it first and return the id
 
-(defn getAlbum
+(defn- getAlbum
     "Returns the album id for a given album name and artist id, or creates one if it doesn't exist yet"
     [albumName, artistId]
     (if-let [id (first (select album
@@ -74,7 +69,7 @@
       (id :id) 
       (first (vals (insert album (values {:name albumName :artist_id artistId}))))))
 
-(defn getTrack
+(defn- getTrack
     "Returns the track id for the trackname and artist id, or creates one if it doesn't exist yet"
     [trackName, artistId]
     (if-let [id (first (select track
@@ -106,3 +101,11 @@
                                      :albumpos track}))
           ))
     files)))
+
+(defn numfiles
+    "Returns how many files are in the local collection"
+    []
+    ((first (select fileT (aggregate (count *) :count))) :count))
+
+
+
