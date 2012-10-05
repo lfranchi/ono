@@ -49,58 +49,65 @@
         (belongs-to fileT artist track album)))
 
 ;;    (insert track (values {:name "Some Track" :artist "Artist Name"})))
+; (defmacro select-id-from
+;   "This should obviously have a meaningful and explanatory docstring, but the entire
+;   thing may just be a bad idea. Also, subtle bugs in macros are common, and I'm not
+;   testing this except with macroexpansion :)"
+;   [table & {where-clause :where}]
+;   `(first (select ~table
+;                   (fields [:id])
+;                   (where ~where-clause))))
 
-(defn- getArtist
+(defmacro get-entity-id
+  "Get the id for the desired entity, inserting it if it doesn't exist yet"
+  [table & {where-clause :where insert-clause :insert}]
+  `(if-let [id# (first (select ~table
+                       (fields [:id])
+                       (where ~where-clause)))]
+    (id# :id)
+    (first (vals (insert ~table (values ~insert-clause))))))
+
+(defn get-artist
     "Returns the artist id for a given name, or creates one if it doesn't exist yet"
     [artistName]
-    (if-let [id (first (select artist
-                        (fields [:id])
-                        (where {:name [like artistName]})))]
-      (id :id) ;; Have an id, return it directly
-      (first (vals (insert artist (values {:name artistName})))))) ;; Not here yet, insert it first and return the id
+    (get-entity-id artist :where {:name [like artistName]} :insert {:name artistName}))
 
-(defn- getAlbum
+(defn- get-album
     "Returns the album id for a given album name and artist id, or creates one if it doesn't exist yet"
     [albumName, artistId]
-    (if-let [id (first (select album
-                        (fields [:id])
-                        (where {:name [like albumName]
-                                :artist_id [= artistId]})))]
-      (id :id) 
-      (first (vals (insert album (values {:name albumName :artist_id artistId}))))))
+    (get-entity-id album :where  {:name [like albumName] :artist_id [= artistId]} 
+                         :insert {:name albumName
+                                  :artist_id artistId}))
 
-(defn- getTrack
+(defn- get-track
     "Returns the track id for the trackname and artist id, or creates one if it doesn't exist yet"
     [trackName, artistId]
-    (if-let [id (first (select track
-                        (fields [:id])
-                        (where {:name [like trackName]
-                                :artist_id [= artistId]})))]
-      (id :id) 
-      (first (vals (insert track (values {:name trackName :artist_id artistId}))))))
+    (get-entity-id track :where  {:name [like trackName] :artist_id [= artistId]} 
+                         :insert {:name trackName
+                                  :artist_id artistId}))
 
 (defn addFiles
     "Adds a list of file maps to the database"
     [files]
     (println (str "Adding number of files: " (count files)))
-    (dorun (map 
-        (fn [{:keys [title artist album year track duration bitrate mtime size file source]}]
+    (doseq [{:keys [title artist album year track duration
+                    bitrate mtime size file source]}
+                    files]
         (let [fileId ((insert fileT (values {:source_id source,
                                            :url       file
                                            :size      size
                                            :mtime     mtime
                                            :duration  duration
                                            :bitrate   bitrate})) :last_insert_rowid())
-              artistId (getArtist artist)
-              albumId  (getAlbum album, artistId)
-              trackId  (getTrack title, artistId)]
+              artistId (get-artist artist)
+              albumId  (get-album album, artistId)
+              trackId  (get-track title, artistId)]
           (insert file_join (values {:file_id fileId
                                      :artist_id artistId
                                      :track_id trackId
                                      :album_id albumId
                                      :albumpos track}))
-          ))
-    files)))
+          )))
 
 (defn numfiles
     "Returns how many files are in the local collection"
