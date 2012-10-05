@@ -58,7 +58,7 @@
     (id# :id)
     (first (vals (insert ~table (values ~insert-clause))))))
 
-(defn get-artist
+(defn- get-artist
     "Returns the artist id for a given name, or creates one if it doesn't exist yet"
     [artistName]
     (get-entity-id artist :where {:name [like artistName]} :insert {:name artistName}))
