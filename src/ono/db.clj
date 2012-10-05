@@ -49,16 +49,6 @@
         (entity-fields :file_id :artist_id :track_id :album_id :albumpos :discnumber)
         (belongs-to fileT artist track album)))
 
-;;    (insert track (values {:name "Some Track" :artist "Artist Name"})))
-; (defmacro select-id-from
-;   "This should obviously have a meaningful and explanatory docstring, but the entire
-;   thing may just be a bad idea. Also, subtle bugs in macros are common, and I'm not
-;   testing this except with macroexpansion :)"
-;   [table & {where-clause :where}]
-;   `(first (select ~table
-;                   (fields [:id])
-;                   (where ~where-clause))))
-
 (defmacro get-entity-id
   "Get the id for the desired entity, inserting it if it doesn't exist yet"
   [table & {where-clause :where insert-clause :insert}]
