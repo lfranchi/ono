@@ -49,7 +49,7 @@
         (entity-fields :file_id :artist_id :track_id :album_id :albumpos :discnumber)
         (belongs-to fileT artist track album)))
 
-(defmacro get-entity-id
+(defmacro get-or-insert-id!
   "Get the id for the desired entity, inserting it if it doesn't exist yet"
   [table & {where-clause :where insert-clause :insert}]
   `(if-let [id# (first (select ~table
@@ -58,22 +58,22 @@
     (id# :id)
     (first (vals (insert ~table (values ~insert-clause))))))
 
-(defn- get-artist
+(defn- get-or-insert-artist!
     "Returns the artist id for a given name, or creates one if it doesn't exist yet"
     [artistName]
-    (get-entity-id artist :where {:name [like artistName]} :insert {:name artistName}))
+    (get-or-insert-id! artist :where {:name [like artistName]} :insert {:name artistName}))
 
-(defn- get-album
+(defn- get-or-insert-album!
     "Returns the album id for a given album name and artist id, or creates one if it doesn't exist yet"
     [albumName, artistId]
-    (get-entity-id album :where  {:name [like albumName] :artist_id [= artistId]} 
+    (get-or-insert-id! album :where  {:name [like albumName] :artist_id [= artistId]} 
                          :insert {:name albumName
                                   :artist_id artistId}))
 
-(defn- get-track
+(defn- get-or-insert-track!
     "Returns the track id for the trackname and artist id, or creates one if it doesn't exist yet"
     [trackName, artistId]
-    (get-entity-id track :where  {:name [like trackName] :artist_id [= artistId]} 
+    (get-or-insert-id! track :where  {:name [like trackName] :artist_id [= artistId]} 
                          :insert {:name trackName
                                   :artist_id artistId}))
 
@@ -90,9 +90,9 @@
                                            :mtime     mtime
                                            :duration  duration
                                            :bitrate   bitrate})) :last_insert_rowid())
-              artistId (get-artist artist)
-              albumId  (get-album album, artistId)
-              trackId  (get-track title, artistId)]
+              artistId (get-or-insert-artist! artist)
+              albumId  (get-or-insert-album! album, artistId)
+              trackId  (get-or-insert-track! title, artistId)]
           (insert file_join (values {:file_id fileId
                                      :artist_id artistId
                                      :track_id trackId
