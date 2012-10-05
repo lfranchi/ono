@@ -1,11 +1,12 @@
 (ns ono.db
-    (:use [korma.db])
-    (:use [korma.core])
-    (:use [fs.core :only (exists?)]))
+    (:use [korma.db]
+          [korma.core]
+          [fs.core :only (exists?)]))
 
-(def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :file "/test/mp3", :source 0 })
+;; (def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :file "/test/mp3", :source 0 })
+(def dbworker (agent nil))
 
-(defn addSortName
+(defn with-sort-name
     "Adds the sort name field to an insert"
     [fields]
     (assoc fields :sortname (:name fields))) ;; For now don't actually calculate the sortname
@@ -27,16 +28,16 @@
 
     (defentity artist
         (entity-fields :name :sortname)
-        (prepare addSortName))
+        (prepare with-sort-name))
 
     (defentity album
         (entity-fields :artist_id :name :sortname)
-        (prepare addSortName))
+        (prepare with-sort-name))
 
     (defentity track
         (entity-fields :name :artist_id :sortname)
         (belongs-to artist)
-        (prepare addSortName))
+        (prepare with-sort-name))
 
     (defentity fileT
         (table :file)
