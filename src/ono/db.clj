@@ -61,21 +61,22 @@
 (defn- get-or-insert-artist!
     "Returns the artist id for a given name, or creates one if it doesn't exist yet"
     [artistName]
-    (get-or-insert-id! artist :where {:name [like artistName]} :insert {:name artistName}))
+    (get-or-insert-id! artist :where {:name [like artistName]} 
+                              :insert {:name artistName}))
 
 (defn- get-or-insert-album!
     "Returns the album id for a given album name and artist id, or creates one if it doesn't exist yet"
     [albumName, artistId]
     (get-or-insert-id! album :where  {:name [like albumName] :artist_id [= artistId]} 
-                         :insert {:name albumName
-                                  :artist_id artistId}))
+                             :insert {:name albumName
+                                      :artist_id artistId}))
 
 (defn- get-or-insert-track!
     "Returns the track id for the trackname and artist id, or creates one if it doesn't exist yet"
     [trackName, artistId]
     (get-or-insert-id! track :where  {:name [like trackName] :artist_id [= artistId]} 
-                         :insert {:name trackName
-                                  :artist_id artistId}))
+                             :insert {:name trackName
+                                      :artist_id artistId}))
 
 (defn addFiles
     "Adds a list of file maps to the database"
@@ -103,7 +104,7 @@
 (defn numfiles
     "Returns how many files are in the local collection"
     []
-    ((first (select fileT (aggregate (count *) :count))) :count))
+    (first (select fileT (aggregate (count *) :count))) :count)
 
 
 
