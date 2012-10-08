@@ -78,11 +78,10 @@
                              :insert {:name trackName
                                       :artist_id artistId}))
 
-(defn addFiles
-    "Adds a list of file maps to the database"
-    [files]
-    (println (str "Adding number of files: " (count files)))
-    (doseq [{:keys [title artist album year track duration
+(defn doAddFiles
+  "Internal agent addFiles"
+  [files]
+  (doseq [{:keys [title artist album year track duration
                     bitrate mtime size file source]}
                     files]
         (let [fileId ((insert fileT (values {:source_id source,
@@ -101,10 +100,17 @@
                                      :albumpos track}))
           )))
 
+(defn addFiles
+    "Adds a list of file maps to the database"
+    [files]
+    ;;(println (str "Adding number of files: " (count files)))
+    (send-off dbworker #(doAddFiles %2) files))
+
 (defn numfiles
     "Returns how many files are in the local collection"
     []
-    (first (select fileT (aggregate (count *) :count))) :count)
+    (await dbworker)
+    (:count (first (select fileT (aggregate (count *) :count)))))
 
 
 
