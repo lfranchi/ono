@@ -48,41 +48,55 @@
               :file   f
               :source nil})))
 
+(defn- starts-with?
+  [input match]
+  (and (> (count input) (count match)) (= (subs input 0 (count match)) match)))
+
+(defmacro parse-args
+  "Argument parsing macro. Takes an input string to parse, and a :match-list like
+   { \"cmd\", fn }. It will execute the associated function for the matching
+   command.
+
+   Also takes a default :default function if no command is matched
+
+   The associated function must take a list of arguments."
+  [input & {matches :match-list default :default}]
+  `(if-let [matching-keys# (seq (for [[k# v#] ~matches :when (starts-with? ~input k#)] k#))]
+    ((first (vals (select-keys ~matches matching-keys#)))
+      (rest (clojure.string/split ~input #" ")))
+    (~default)))
+
 ;; Scanner
 (defn- scan
     "Scans a desired folder recursively for any audio files we can recognize.
      Parses the ID3 tags and inserts into the database."
      [folder]
      (println (str "Scanning folder " folder))
-     ;; jaudiotagger is super verbose on stderr
-     (let [os System/err] 
-        (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null")))
-        (dorun (fs/walk (fn [r dirs files]
-                    (db/addFiles (filter #(not (empty? %)) ;; Remove files with no tags
-                                   (map (fn [f]
-                                     (extractID3 (fs/file r f)))
-                                      files))))
-        folder))
-     (System/setErr os)))
+      (dorun (fs/walk (fn [r dirs files]
+                  (db/addFiles (filter #(not (empty? %)) ;; Remove files with no tags
+                                 (map (fn [f]
+                                   (extractID3 (fs/file r f)))
+                                    files))))
+      folder)))
 
-(defn handle [input]
-    (cond 
-        (= input "help")
-            (println "Supported commands:
+(defn handle
+  "Handles a line of user input from the REPL"
+  [input]
+  (parse-args input :match-list { "help" (fn [_] (println "Supported commands:
 
 help:                         Show this help message
 scan [folder]:                Scan the folder for music
 numfiles:                     Return how many files are in the db
-search \"track\" \"artist\":      Search for a desired track/artist pair")
-        (and (> (count input) 4) (= (subs input 0 4) "scan"))
-            (scan (second (clojure.string/split input #" ")))
-        (and (> (count input) 7) (= (subs input 0 8) "numfiles"))
-            (println (db/numfiles))
-        :else
-            (println "No such command!")))
+search \"track\" \"artist\":      Search for a desired track/artist pair"))
+
+                "scan"     (fn [args] (scan (first args)))
+                "numfiles" (fn [_] (println db/numfiles))}
+                    :default #(println "No such command!")))
 
 (defn -main [& args]
     (setup)
+     ;; jaudiotagger is super verbose on stderr
+    (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null")))
     (println "Welcome to Ono.")
     (while true
         (print "> ")
