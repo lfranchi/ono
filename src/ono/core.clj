@@ -1,5 +1,6 @@
 (ns ono.core
     (:require [ono.db :as db]
+              [ono.net :as net]
               [cheshire.core :as json]
               [fs.core :as fs])
     (:import  [org.jaudiotagger.audio]
@@ -97,6 +98,7 @@ search \"track\" \"artist\":      Search for a desired track/artist pair"))
     (setup)
      ;; jaudiotagger is super verbose on stderr
     (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null")))
+    (net/start-udp)
     (println "Welcome to Ono.")
     (while true
         (print "> ")
