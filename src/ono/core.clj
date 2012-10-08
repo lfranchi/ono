@@ -1,9 +1,9 @@
 (ns ono.core
-    (:require [ono.db :as db])
-    (:require [cheshire.core :as json])
-    (:require [fs.core :as fs])
-    (:import [org.jaudiotagger.audio])
-    (:import [org.jaudiotagger.tag])
+    (:require [ono.db :as db]
+              [cheshire.core :as json]
+              [fs.core :as fs])
+    (:import  [org.jaudiotagger.audio]
+              [org.jaudiotagger.tag])
     (:gen-class))
 
 ;; Constants
