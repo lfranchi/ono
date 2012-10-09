@@ -30,15 +30,21 @@
 ;; Network protocol
 (def frame (gloss/finite-frame
  (gloss/prefix 
-    [:int32 :byte]
-    first
-    (fn [x] [x 2]))
- (gloss/string :utf-8)))
+    :int32
+    inc
+    dec)
+ [:ubyte (gloss/string :utf-8)]))
+
+(defn generate-json
+  "Generates a vector to be serialized from a map"
+  [msg-data]
+  ;; 2 is the flag value for JSON payloads
+  [2 (json/generate-string msg-data)])
 
 (defn get-handshake-msg
   "Returns a JSON handshake msg from zeroconf peers"
   [foreign-dbid]
-  (json/generate-string {:conntype "accept-offer"
+  (generate-json {:conntype "accept-offer"
                          :nodeid db/dbid
                          :key "whitelist"
                          :port tcp-port}))
