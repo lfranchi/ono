@@ -25,9 +25,10 @@
     (if (not (fs/exists? confFile))
         (fs/create (fs/file confFile)))
     (dosync
-        (ref-set config (json/parse-string (slurp confFile)))))
+        (ref-set config (json/parse-string (slurp confFile))))
 
     (db/setupdb dbFile)
+    )
 
 (defn- extractID3
     "Extracts basic ID3 info from a file"
