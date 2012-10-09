@@ -8,5 +8,6 @@
         				 [korma "0.3.0-beta7"]
         				 [org.clojure/java.jdbc "0.1.1"] 
         				 [org.xerial/sqlite-jdbc "3.7.2"]
-        				 [org.jaudiotagger/jaudiotagger "2.0.1"]]
+        				 [org.jaudiotagger/jaudiotagger "2.0.1"]
+                 [aleph "0.3.0-beta2"]]
   :main ono.core)
