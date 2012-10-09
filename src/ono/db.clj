@@ -1,7 +1,8 @@
 (ns ono.db
     (:use [korma.db]
           [korma.core]
-          [fs.core :only (exists?)]))
+          [fs.core :only (exists?)])
+    (:require [fs.core :as fs]))
 
 (def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :file "/test/mp3", :source 0 })
 (def dbworker (agent nil))
@@ -17,9 +18,12 @@
 
     ;; I was unable to get korma or java-jdbc to create the initial db/tables
     ;; from scratch, so we use a simple shell script to do it for us
-    (if-not (exists? dbFile)
-        (do (println "No DB found. Please create it with ./setupdb.sh")
-                (System/exit 0)))
+    (if-not (fs/exists? dbFile)
+      (fs/with-mutable-cwd
+        (do
+          (fs/chdir (str fs/*cwd* "/resources"))
+          (fs/exec (str "./setupdb.sh"))))
+      )
 
     (defdb sqlite (sqlite3 {:db dbFile}))
 
@@ -61,20 +65,20 @@
 (defn- get-or-insert-artist!
     "Returns the artist id for a given name, or creates one if it doesn't exist yet"
     [artistName]
-    (get-or-insert-id! artist :where {:name [like artistName]} 
+    (get-or-insert-id! artist :where {:name [like artistName]}
                               :insert {:name artistName}))
 
 (defn- get-or-insert-album!
     "Returns the album id for a given album name and artist id, or creates one if it doesn't exist yet"
     [albumName, artistId]
-    (get-or-insert-id! album :where  {:name [like albumName] :artist_id [= artistId]} 
+    (get-or-insert-id! album :where  {:name [like albumName] :artist_id [= artistId]}
                              :insert {:name albumName
                                       :artist_id artistId}))
 
 (defn- get-or-insert-track!
     "Returns the track id for the trackname and artist id, or creates one if it doesn't exist yet"
     [trackName, artistId]
-    (get-or-insert-id! track :where  {:name [like trackName] :artist_id [= artistId]} 
+    (get-or-insert-id! track :where  {:name [like trackName] :artist_id [= artistId]}
                              :insert {:name trackName
                                       :artist_id artistId}))
 
@@ -111,6 +115,3 @@
     []
     (await dbworker)
     (:count (first (select fileT (aggregate (count *) :count)))))
-
-
-
