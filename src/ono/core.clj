@@ -51,7 +51,7 @@
 
 (defn- starts-with?
   [input match]
-  (and (> (count input) (count match)) (= (subs input 0 (count match)) match)))
+  (and (>= (count input) (count match)) (= (subs input 0 (count match)) match)))
 
 (defmacro parse-args
   "Argument parsing macro. Takes an input string to parse, and a :match-list like
@@ -91,8 +91,8 @@ numfiles:                     Return how many files are in the db
 search \"track\" \"artist\":      Search for a desired track/artist pair"))
 
                 "scan"     (fn [args] (scan (first args)))
-                "numfiles" (fn [_] (println db/numfiles))}
-                    :default #(println "No such command!")))
+                "numfiles" (fn [_] (println (db/numfiles)))}
+                :default   #(println "No such command!")))
 
 (defn -main [& args]
     (setup)
