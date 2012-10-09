@@ -26,7 +26,7 @@
         (fs/create (fs/file confFile)))
     (dosync
         (ref-set config (json/parse-string (slurp confFile)))))
-    
+
     (db/setupdb dbFile)
 
 (defn- extractID3
@@ -62,7 +62,9 @@
 
    The associated function must take a list of arguments."
   [input & {matches :match-list default :default}]
-  `(if-let [matching-keys# (seq (for [[k# v#] ~matches :when (starts-with? ~input k#)] k#))]
+  `(if-let [matching-keys# (seq
+                            (for [k# (keys ~matches) :when (starts-with? ~input k#)] k#)
+                            )]
     ((first (vals (select-keys ~matches matching-keys#)))
       (rest (clojure.string/split ~input #" ")))
     (~default)))
@@ -83,16 +85,18 @@
 (defn handle
   "Handles a line of user input from the REPL"
   [input]
-  (parse-args input :match-list { "help" (fn [_] (println "Supported commands:
+  (parse-args input
+              :match-list {
+                                 "help" (fn [_] (println "Supported commands:
 
 help:                         Show this help message
 scan [folder]:                Scan the folder for music
 numfiles:                     Return how many files are in the db
 search \"track\" \"artist\":      Search for a desired track/artist pair"))
 
-                "scan"     (fn [args] (scan (first args)))
-                "numfiles" (fn [_] (println (db/numfiles)))}
-                :default   #(println "No such command!")))
+                                 "scan"     (fn [args] (scan (first args)))
+                                 "numfiles" (fn [_] (println (db/numfiles)))}
+              :default   #(println "No such command!")))
 
 (defn -main [& args]
     (setup)
