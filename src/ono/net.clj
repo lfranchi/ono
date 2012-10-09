@@ -1,5 +1,6 @@
 (ns ono.net
-    (:require [cheshire.core :as json]
+    (:require [ono.db :as db]
+              [cheshire.core :as json]
               [gloss.io :as gio]
               [gloss.core :as gloss]
               [aleph.tcp :as tcp]
@@ -12,13 +13,17 @@
 ;; Handles socket connections to other tomahawk/ono instances
 
 ;; Zeroconf discovery handling
-(def port 55555)
+(def zeroconf-port 55555)
 (def dgram-size 16384)
 (def udp-listener (agent nil))
 (def udp-sock (ref nil))
 
+;; TCP protocol
+(def tcp-port 55555)
+
 ;; Ono<->Tomahawk connections
-(def peers (ref (list)))
+;; Keyed by dbid
+(def peers (ref {}))
 
 (def running true)
 
@@ -30,13 +35,37 @@
     (fn [x] [x 2]))
  (gloss/string :utf-8)))
 
+(defn get-handshake-msg
+  "Returns a JSON handshake msg from zeroconf peers"
+  [foreign-dbid]
+  (json/generate-string {:conntype "accept-offer"
+                         :nodeid db/dbid
+                         :key "whitelist"
+                         :port tcp-port}))
+
+(defn handle-tcp-msg
+  "Handles the TCP message for a specific peer"
+  [peer]
+  (fn [package]
+    (println "Got TCP message on channel from peer:" peer package (type package))))
 
 (defn addPeer
     "Adds a new peer and starts the TCP communication"
-    [ip, port, dbid]
+    [ip, port, foreign-dbid]
     ;; Attempt to connect to the remote tomahawk
-    
-    )
+    ; (println "Found broadcast from peer:" ip port dbid)
+    (println "Connecting to:" ip port)
+    (lamina/on-realized (tcp/tcp-client {:host ip :port (Integer/parseInt port) :frame frame})
+      (fn [ch]
+        ;; Connection suceeded, here's our channel
+        (dosync
+          (alter peers assoc foreign-dbid ch))
+        (lamina/receive-all ch (handle-tcp-msg foreign-dbid))
+        (lamina/enqueue ch (get-handshake-msg foreign-dbid))
+        (println "Sent initial msg"))
+      (fn [ch]
+        ;; Failed
+        (println "Failed to connect to" ip port ch))))
 
 
 (defn listen
@@ -57,8 +86,8 @@
    "Starts the UDP listener and periodically sends
     UDP broacasts"
     []
-    (dosync (ref-set udp-sock (DatagramSocket. port)))
-    (println "Beginning to listen on port " port)
+    (dosync (ref-set udp-sock (DatagramSocket. zeroconf-port)))
+    (println "Beginning to listen on port " zeroconf-port)
     (send-off udp-listener listen))
 
 
