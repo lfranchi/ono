@@ -35,6 +35,7 @@
 ;; Ono<->Tomahawk connections
 ;; Keyed by dbid
 (def peers (ref {}))
+(def ping-agent (agent nil))
 
 (def running true)
 
@@ -45,6 +46,12 @@
     inc
     dec)
  [:ubyte (gloss/string :utf-8)]))
+
+;; Utility functions
+(defn agent-error-handler
+  "Handles errors and exceptions from agents"
+  [ag excp]
+  (println "An agent threw an exception:" excp))
 
 (defn generate-json
   "Generates a vector to be serialized from a map"
@@ -59,35 +66,51 @@
                          :key "whitelist"
                          :port tcp-port}))
 
+(defn ping-peers
+  "Sends a PING message every 10 minutes to any
+   active peer connection"
+   [_]
+   (doseq [ch (dosync (vals @peers))]
+            (lamina/enqueue ch [(flag-value :PING) ""]))
+   (. Thread (sleep 5000))
+   (send-off ping-agent ping-peers))
+
+(defn handle-handshake-msg
+  "Handles the handshake after an initial SETUP message
+   is received"
+   [peer flag body]
+    (when (= body "4") ;; We only support protocol 4
+      (let [ch (dosync (peers peer))]
+        (lamina/enqueue ch [(flag-value :SETUP) "ok"])
+
+      )))
+
 (defn handle-tcp-msg
   "Handles the TCP message for a specific peer"
   [peer]
   (fn [[flag body]]
     (println "Got TCP message on channel from peer:" peer flag body)
     ((condp = (flags flag)
-      :SETUP (fn []
-               (dosync
-                (when (= body "4") ;; We only support protocol 4
-                  (let [ch (peers peer)]
-                    (lamina/enqueue ch [(flag-value :SETUP) "ok"])))))))))
+      :SETUP #(handle-handshake-msg peer flag body)
+      :PING #(print))))) ;; Ignore PING messages for now
 
 (defn addPeer
     "Adds a new peer and starts the TCP communication"
     [ip, port, foreign-dbid]
     ;; Attempt to connect to the remote tomahawk
     ; (println "Found broadcast from peer:" ip port dbid)
-    (println "Connecting to:" ip port)
-    (lamina/on-realized (tcp/tcp-client {:host ip :port (Integer/parseInt port) :frame frame})
-      (fn [ch]
-        ;; Connection suceeded, here's our channel
-        (dosync
-          (alter peers assoc foreign-dbid ch))
-        (lamina/receive-all ch (handle-tcp-msg foreign-dbid))
-        (lamina/enqueue ch (get-handshake-msg foreign-dbid))
-        (println "Sent initial msg"))
-      (fn [ch]
-        ;; Failed
-        (println "Failed to connect to" ip port ch))))
+    (if-not (dosync (peers foreign-dbid)) ;; Ignore if already connected
+      (lamina/on-realized (tcp/tcp-client {:host ip :port (Integer/parseInt port) :frame frame})
+        (fn [ch]
+          ;; Connection suceeded, here's our channel
+          (dosync
+            (alter peers assoc foreign-dbid ch))
+          (lamina/receive-all ch (handle-tcp-msg foreign-dbid))
+          (lamina/enqueue ch (get-handshake-msg foreign-dbid))
+          (println "Sent initial msg"))
+        (fn [ch]
+          ;; Failed
+          (println "Failed to connect to" ip port ch)))))
 
 
 (defn listen
@@ -110,7 +133,10 @@
     []
     (dosync (ref-set udp-sock (DatagramSocket. zeroconf-port)))
     (println "Beginning to listen on port " zeroconf-port)
-    (send-off udp-listener listen))
+    (set-error-handler! udp-listener agent-error-handler)
+    (set-error-handler! ping-agent agent-error-handler)
+    (send-off udp-listener listen)
+    (send-off ping-agent ping-peers))
 
 
 (defn stop-udp
