@@ -47,3 +47,15 @@ CREATE TABLE IF NOT EXISTS file_join (
 CREATE INDEX file_join_track  ON file_join(track_id);
 CREATE INDEX file_join_artist ON file_join(artist_id);
 CREATE INDEX file_join_album  ON file_join(album_id);
+
+CREATE TABLE IF NOT EXISTS oplog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id INTEGER REFERENCES source(id) ON DELETE CASCADE ON UPDATE CASCADE, -- DEFERRABLE INITIALLY DEFERRED,
+    guid TEXT NOT NULL,
+    command TEXT NOT NULL,
+    singleton BOOLEAN NOT NULL,
+    compressed BOOLEAN NOT NULL,
+    json TEXT NOT NULL
+);
+CREATE UNIQUE INDEX oplog_guid ON oplog(guid);
+CREATE INDEX oplog_source ON oplog(source);

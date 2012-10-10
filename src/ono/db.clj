@@ -55,7 +55,10 @@
     (defentity file_join
         (pk :file_id)
         (entity-fields :file_id :artist_id :track_id :album_id :albumpos :discnumber)
-        (belongs-to fileT artist track album)))
+        (belongs-to fileT artist track album))
+
+    (defentity oplog
+      (entity-fields :source_id :guid :command :singleton :compressed :json)))
 
 (defmacro get-or-insert-id!
   "Get the id for the desired entity, inserting it if it doesn't exist yet"

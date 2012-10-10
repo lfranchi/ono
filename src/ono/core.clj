@@ -27,8 +27,7 @@
     (dosync
         (ref-set config (json/parse-string (slurp confFile))))
 
-    (db/setupdb dbFile)
-    )
+    (db/setupdb dbFile))
 
 (defn- extractID3
     "Extracts basic ID3 info from a file"
