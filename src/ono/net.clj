@@ -20,6 +20,17 @@
 
 ;; TCP protocol
 (def tcp-port 55555)
+(def flags {1   :RAW
+            2   :JSON
+            4   :FRAGMENT
+            8   :COMPRESSED
+            16  :DBOP
+            32  :PING
+            64  :RESERVED
+            128 :SETUP})
+(defn flag-value
+  [value]
+  (some #(if (= (val %) value) (key %)) flags))
 
 ;; Ono<->Tomahawk connections
 ;; Keyed by dbid
@@ -38,8 +49,7 @@
 (defn generate-json
   "Generates a vector to be serialized from a map"
   [msg-data]
-  ;; 2 is the flag value for JSON payloads
-  [2 (json/generate-string msg-data)])
+  [(flag-value :JSON) (json/generate-string msg-data)])
 
 (defn get-handshake-msg
   "Returns a JSON handshake msg from zeroconf peers"
@@ -52,8 +62,14 @@
 (defn handle-tcp-msg
   "Handles the TCP message for a specific peer"
   [peer]
-  (fn [package]
-    (println "Got TCP message on channel from peer:" peer package (type package))))
+  (fn [[flag body]]
+    (println "Got TCP message on channel from peer:" peer flag body)
+    ((condp = (flags flag)
+      :SETUP (fn []
+               (dosync
+                (when (= body "4") ;; We only support protocol 4
+                  (let [ch (peers peer)]
+                    (lamina/enqueue ch [(flag-value :SETUP) "ok"])))))))))
 
 (defn addPeer
     "Adds a new peer and starts the TCP communication"
