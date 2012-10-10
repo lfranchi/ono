@@ -1,7 +1,7 @@
 (defproject ono "0.1.0-SNAPSHOT"
   :description "A tomahawk daemon written in Clojure"
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :license {:name "GNU Public License V3"
+            :url "http://www.gnu.org/licenses/gpl.html"}
   :dependencies [[org.clojure/clojure "1.3.0"]
         				 [fs "1.3.2"]
         				 [cheshire "4.0.3"]
