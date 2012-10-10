@@ -73,13 +73,6 @@
             (generate-json (assoc main-msg :controlid db/dbid)) ;; All subsequent (dbsync and stream connections) require controlid
             (generate-json (assoc main-msg :nodeid db/dbid))))) ;; ControlConnection (first connection) requires nodeid
 
-; (defn get-dbconn-handler
-;   "Returns a handler function for dbsync connections
-;    that is bound do this particular peer"
-;    [peer]
-;    (fn [[flag body]]
-;     (println "DBSyncConnection msg:" flag body)))
-
 (defn ping-peers
   "Sends a PING message every 10 minutes to any
    active peer connection"
@@ -93,7 +86,6 @@
   "Handles the handshake after an initial SETUP message
    is received"
    [ch peer flag body]
-   (println "Doing handshake!")
     (when (= body "4") ;; We only support protocol 4
       (lamina/enqueue ch [(flag-value :SETUP) "ok"])))
 
@@ -122,7 +114,7 @@
   "Handles the TCP message for a specific peer"
   [ch peer]
   (fn [[flag body]]
-    (println "Connection msg:" peer flag body)
+    ; (println "Connection msg:" peer flag body)
     (condp test-flag flag
       (flag-value :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body))
       (flag-value :PING)  :>> (fn [_] (print))  ;; Ignore PING messages for now, TODO if no ping in 10s, disconnect
@@ -133,7 +125,7 @@
      and starts the TCP communication"
     [ip, port, foreign-dbid, key, connection-map]
     ;; Attempt to connect to the remote tomahawk
-    (println "Asked to connect to peer, control or subsequent connection:" ip port foreign-dbid key connection-map)
+    ; (println "Asked to connect to peer, control or subsequent connection:" ip port foreign-dbid key connection-map)
     (lamina/on-realized (tcp/tcp-client {:host ip :port (Integer/parseInt port) :frame frame})
       (fn [ch]
         ;; Connection suceeded, here's our channel
@@ -146,7 +138,6 @@
             (if-not (known-peers foreign-dbid) 
               (alter known-peers assoc foreign-dbid {:host ip :port port})))
           (lamina/receive-all ch (get-tcp-handler ch foreign-dbid))
-          (println "Sending connection message" handshake-msg)
           (lamina/enqueue ch handshake-msg)))
         (fn [ch]
           ;; Failed
