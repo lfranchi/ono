@@ -60,6 +60,7 @@
     (defentity oplog
       (entity-fields :source_id :guid :command :singleton :compressed :json)))
 
+;; Utility functions for DB operations
 (defmacro get-or-insert-id!
   "Get the id for the desired entity, inserting it if it doesn't exist yet"
   [table & {where-clause :where insert-clause :insert}]
@@ -89,8 +90,26 @@
                              :insert {:name trackName
                                       :artist_id artistId}))
 
-(defn- doAddFiles
-  "Internal agent addFiles"
+(defn get-or-insert-source!
+  "Returns the source id for the given source's dbid. If it doesn't exist yet, creates it first.
+   Friendlyname is optional, and will only be used when inserting a new source"
+  [dbid friendlyname]
+  (get-or-insert-id! source :where {:name dbid} :insert {:name dbid :friendlyname friendlyname}))
+
+;; Dispatch central for db operations
+
+(defn dispatch-db-cmd
+  "Dispatches the given db command from a peer. The dbcmd is a map either from json or native
+   client that describes the operation
+
+   If the sourceid is null (meaning this is a local dbcmd), it will be logged to the oplog
+   and replicated to peers."
+   [flags msg]
+   (if (= (msg "command") "addfiles")
+    (println "ADD FILES COMMAND:" msg)))
+
+(defn- do-add-files
+  "Internal agent add-files"
   [files]
   (doseq [{:keys [title artist album year track duration
                     bitrate mtime size file source]}
@@ -111,11 +130,11 @@
                                      :albumpos track}))
           )))
 
-(defn addFiles
-    "Adds a list of file maps to the database"
+(defn add-files
+    "Adds a list of file maps to the database, from the local user"
     [files]
     ;;(println (str "Adding number of files: " (count files)))
-    (send-off dbworker #(doAddFiles %2) files))
+    (send-off dbworker #(do-add-files %2) files))
 
 (defn numfiles
     "Returns how many files are in the local collection"

@@ -79,7 +79,7 @@
      [folder]
      (println (str "Scanning folder " folder))
       (dorun (fs/walk (fn [r dirs files]
-                  (db/addFiles (filter #(not (empty? %)) ;; Remove files with no tags
+                  (db/add-files (filter #(not (empty? %)) ;; Remove files with no tags
                                  (map (fn [f]
                                    (extractID3 (fs/file r f)))
                                     files))))

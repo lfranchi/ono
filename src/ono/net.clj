@@ -48,7 +48,7 @@
 (def control-connections (ref {}))
 (def dbsync-connections (ref {}))
 
-;; Bookkeeping: dbid<--> {:host :port}
+;; Bookkeeping: dbid<--> {:host :port :sourceid}
 (def known-peers (ref {}))
 
 (def ping-agent (agent nil))
@@ -77,6 +77,11 @@
   "Returns true if the given connection is a dbsyncconnection"
   [ch]
   (dosync (has-value @dbsync-connections ch)))
+
+(defn source-for-peer
+  "Returns the sourceid for a given peer"
+  [peer]
+  (dosync (known-peers :sourceid)))
 
 (defn generate-json
   "Generates a vector to be serialized from a map"
@@ -109,6 +114,11 @@
     (when (= body "4") ;; We only support protocol 4
       (lamina/enqueue ch [(flag-value :SETUP) "ok"])))
 
+; (defn handle-db-cmd
+;   "Handles a database command that is received over the network"
+;   [ch peer flag msg]
+;   (println "Handling DBCMD" (msg "command")))
+
 ;; Forward-declare add-peer as it is required by handle-json-msg
 ;; but add-peer requires get-tcp-handler (which require handle-json-message)
 (declare add-peer-connection)
@@ -121,7 +131,6 @@
 (defn handle-json-msg
   "Handles an incoming JSON message from a peer"
   [ch peer flag body]
-  (println "Got JSON message from:" peer body "compressed?" (test-flag flag (flag-value :COMPRESSED)))
   (let [msg (json/parse-string body)
         cmd (msg "method")
         key (msg "key")]
@@ -130,8 +139,11 @@
                                        port (dosync ((known-peers peer) :port))]
                                     (add-peer-connection host port peer key dbsync-connections)))
       "fetchops"     :>>  (fn [_] (print))
-      (print) ;; default
-      )))
+      (print))
+    ;; DBop messages only have a "command" field
+    (when (msg "command")
+      ;; Add the source field to each msg coming from the network
+      (ono.db/dispatch-db-cmd flag (assoc msg :source (source-for-peer peer))))))
 
 (defn uncompress
   "Uncompresses the tcp request that has been compressed with zlib plus 4-byte big-endian size header"
@@ -142,12 +154,11 @@
   "Handles the TCP message for a specific peer"
   [ch peer]
   (fn handle-tcp-request[[flag body-bytes]]
-    (info "Connection msg:" peer flag)
+    ; (info "Connection msg:" peer flag)
     (if (test-flag flag (flag-value :COMPRESSED))
-      (do (info "Uncompressing, new flag:" (test-flag flag (flag-value :COMPRESSED)) (test-flag (bit-and (bit-not (flag-value :COMPRESSED)) flag) (flag-value :COMPRESSED)))
       (handle-tcp-request [(bit-and (bit-not (flag-value :COMPRESSED)) flag) ;; Remove COMPRESSED flag
-                           (uncompress body-bytes)])) ;; call ourselves w/ uncompressed body
-      (let [body-str (java.lang.String. (byte-array body-bytes) (java.nio.charset.Charset/forName "utf-8"))]
+                           (uncompress body-bytes)]) ;; call ourselves w/ uncompressed body
+      (let [body-str (String. (byte-array body-bytes) (java.nio.charset.Charset/forName "utf-8"))]
         (condp test-flag flag
           (flag-value :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body-str))
           (flag-value :PING)  :>> (fn [_] (print))  ;; Ignore PING messages for now, TODO if no ping in 10s, disconnect
@@ -172,7 +183,7 @@
               (alter known-peers assoc foreign-dbid {:host ip :port port})))
           (lamina/receive-all ch (get-tcp-handler ch foreign-dbid))
           (lamina/enqueue ch handshake-msg)
-          (if (is-dbsync-connection? ch)
+          (if (is-dbsync-connection? ch) ;; HACK for development only, force fetch of all dbops
             (lamina/enqueue ch (generate-json {:method "fetchops" :lastop ""})))))
         (fn [ch]
           ;; Failed
@@ -188,12 +199,17 @@
           strval (dosync (.receive @udp-sock packet) (String. (.getData packet) 0 (.getLength packet)))]
         ; (println "Received packet:" strval)
         ;; We only support v2 broadcasts
-        (let [parts (clojure.string/split strval #":")]
+        (let [parts        (clojure.string/split strval #":")]
             (if (and (= (count parts) 4) (= (first parts) "TOMAHAWKADVERT"))
-              ;; Initial setup in the control-connection uses a magic "whitelist" key
-              ;; Make sure we are not already connected
-              (if-not (dosync (control-connections (nth parts 2)))
-                (add-peer-connection (last parts) (nth parts 1) (nth parts 2) "whitelist" control-connections)))))
+              (let [ip           (last parts)
+                    port         (nth parts 1)
+                    foreign-dbid (nth parts 2)]
+                ;; Initial setup in the control-connection uses a magic "whitelist" key
+                ;; Make sure we are not already connected
+                (when-not (dosync (control-connections foreign-dbid))
+                  (let [sourceid (ono.db/get-or-insert-source! foreign-dbid ip)]
+                    (dosync (alter known-peers assoc :sourceid sourceid))
+                    (add-peer-connection ip port foreign-dbid "whitelist" control-connections)))))))
    (send udp-listener listen))
 
 (defn start-udp
