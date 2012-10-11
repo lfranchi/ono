@@ -11,6 +11,5 @@
         				 [org.jaudiotagger/jaudiotagger "2.0.1"] ;; ID3/FLAC tagging library
                  [aleph "0.3.0-beta2"] ;; TCP abstraction layer
                  [org.clojure/data.codec "0.1.0"] ;; Base64 decoding
-                 [log4j/log4j "1.2.16"] ;; Logging
-                 [clj-logging-config "1.9.10"]]
+                 [log4j/log4j "1.2.16"]] ;; Logging
   :main ono.core)

@@ -1,7 +1,7 @@
 (ns ono.db
     (:use [korma.db]
           [korma.core]
-          [fs.core :only (exists?)])
+          [clojure.tools.logging])
     (:require [fs.core :as fs]))
 
 ;; TODO properly generate dbid UUID when initalizing a new

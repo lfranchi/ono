@@ -1,4 +1,5 @@
 (ns ono.net
+    (:use [clojure.tools.logging])
     (:require [ono.db :as db]
               [ono.utils :as utils]
               [cheshire.core :as json]
