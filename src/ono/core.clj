@@ -1,4 +1,6 @@
 (ns ono.core
+    (:use clojure.tools.logging
+          clj-logging-config.log4j)
     (:require [ono.db :as db]
               [ono.net :as net]
               [cheshire.core :as json]
@@ -19,6 +21,8 @@
 (defn- setup
     "Loads configuration and database"
     []
+    (set-logger! :pattern "%m%n")
+
     ;; Create files if they don't exist yet
     (if (not (fs/exists? configDir))
         (fs/mkdir configDir))
