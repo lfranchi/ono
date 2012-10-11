@@ -96,6 +96,29 @@
   [dbid friendlyname]
   (get-or-insert-id! source :where {:name dbid} :insert {:name dbid :friendlyname friendlyname}))
 
+(defn- do-add-files
+  "Internal agent add-files"
+  [source, files]
+  (info "GOT FILES" files)
+  (doseq [{:keys [track artist album year albumpos duration
+                    bitrate mtime size url]}
+                    files]
+        (let [fileId ((insert fileT (values {:source_id source,
+                                             :url       url
+                                             :size      size
+                                             :mtime     mtime
+                                             :duration  duration
+                                             :bitrate   bitrate})) :last_insert_rowid())
+              artistId (get-or-insert-artist! artist)
+              albumId  (get-or-insert-album! album, artistId)
+              trackId  (get-or-insert-track! track, artistId)]
+          (insert file_join (values {:file_id fileId
+                                     :artist_id artistId
+                                     :track_id trackId
+                                     :album_id albumId
+                                     :albumpos albumpos}))
+          )))
+
 ;; Dispatch central for db operations
 
 (defn dispatch-db-cmd
@@ -105,36 +128,21 @@
    If the sourceid is null (meaning this is a local dbcmd), it will be logged to the oplog
    and replicated to peers."
    [flags msg]
-   (if (= (msg "command") "addfiles")
-    (println "ADD FILES COMMAND:" msg)))
+   (condp = (msg :command)
+      "addfiles"                  :>> (fn [_]
+                                        (println "ADD FILES COMMAND:" msg)
+                                        (do-add-files (msg :source) (msg :files)))
+      "createplaylist"            :>> (fn[_] (print)) ;; Not implemented
+      "setplaylistrevision"       :>> (fn [_] (print))
+      "logplayback"               :>> (fn [_] (print))
 
-(defn- do-add-files
-  "Internal agent add-files"
-  [files]
-  (doseq [{:keys [title artist album year track duration
-                    bitrate mtime size file source]}
-                    files]
-        (let [fileId ((insert fileT (values {:source_id source,
-                                           :url       file
-                                           :size      size
-                                           :mtime     mtime
-                                           :duration  duration
-                                           :bitrate   bitrate})) :last_insert_rowid())
-              artistId (get-or-insert-artist! artist)
-              albumId  (get-or-insert-album! album, artistId)
-              trackId  (get-or-insert-track! title, artistId)]
-          (insert file_join (values {:file_id fileId
-                                     :artist_id artistId
-                                     :track_id trackId
-                                     :album_id albumId
-                                     :albumpos track}))
-          )))
+      (println "Unknown command:" (msg :command))))
 
 (defn add-files
     "Adds a list of file maps to the database, from the local user"
     [files]
     ;;(println (str "Adding number of files: " (count files)))
-    (send-off dbworker #(do-add-files %2) files))
+    (send-off dbworker #(do-add-files nil %2) files))
 
 (defn numfiles
     "Returns how many files are in the local collection"

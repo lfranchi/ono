@@ -40,16 +40,16 @@
               audio (org.jaudiotagger.audio.AudioFileIO/read fd)
               tag (.getTag audio)
               header (.getAudioHeader audio)]
-            {:title  (.getFirst tag org.jaudiotagger.tag.FieldKey/TITLE)
+            {:track  (.getFirst tag org.jaudiotagger.tag.FieldKey/TITLE)
               :artist (.getFirst tag org.jaudiotagger.tag.FieldKey/ARTIST)
               :album  (.getFirst tag org.jaudiotagger.tag.FieldKey/ALBUM)
               :year   (.getFirst tag org.jaudiotagger.tag.FieldKey/YEAR)
-              :track  (.getFirst tag org.jaudiotagger.tag.FieldKey/TRACK)
+              :albumpos  (.getFirst tag org.jaudiotagger.tag.FieldKey/TRACK)
               :duration (.getTrackLength header)
               :bitrate (.getSampleRateAsNumber header)
               :mtime  (fs/mod-time fd)
               :size   (fs/size fd)
-              :file   f
+              :url   f
               :source nil})))
 
 (defn- starts-with?

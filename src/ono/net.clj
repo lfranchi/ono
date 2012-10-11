@@ -131,9 +131,10 @@
 (defn handle-json-msg
   "Handles an incoming JSON message from a peer"
   [ch peer flag body]
-  (let [msg (json/parse-string body)
-        cmd (msg "method")
-        key (msg "key")]
+  (let [msg (json/parse-string body (fn [k] (keyword k)))
+        cmd (msg :method)
+        key (msg :key)]
+    ; (print "Handing MSG" cmd key)
     (condp = cmd
       "dbsync-offer" :>> (fn [_] (let [host (dosync ((known-peers peer) :host))
                                        port (dosync ((known-peers peer) :port))]
@@ -141,7 +142,7 @@
       "fetchops"     :>>  (fn [_] (print))
       (print))
     ;; DBop messages only have a "command" field
-    (when (msg "command")
+    (when (msg :command)
       ;; Add the source field to each msg coming from the network
       (ono.db/dispatch-db-cmd flag (assoc msg :source (source-for-peer peer))))))
 
@@ -154,7 +155,7 @@
   "Handles the TCP message for a specific peer"
   [ch peer]
   (fn handle-tcp-request[[flag body-bytes]]
-    ; (info "Connection msg:" peer flag)
+    ; (info "Connection msg:" `peer flag)
     (if (test-flag flag (flag-value :COMPRESSED))
       (handle-tcp-request [(bit-and (bit-not (flag-value :COMPRESSED)) flag) ;; Remove COMPRESSED flag
                            (uncompress body-bytes)]) ;; call ourselves w/ uncompressed body
@@ -206,7 +207,7 @@
                     foreign-dbid (nth parts 2)]
                 ;; Initial setup in the control-connection uses a magic "whitelist" key
                 ;; Make sure we are not already connected
-                (when-not (dosync (control-connections foreign-dbid))
+                (when-not (dosync (control-connections foreign-dbid)) ;; Keep track of each peer by a sourceid. That will be used in the db
                   (let [sourceid (ono.db/get-or-insert-source! foreign-dbid ip)]
                     (dosync (alter known-peers assoc :sourceid sourceid))
                     (add-peer-connection ip port foreign-dbid "whitelist" control-connections)))))))
