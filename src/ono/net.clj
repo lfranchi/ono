@@ -28,9 +28,16 @@
             32  :PING
             64  :RESERVED
             128 :SETUP})
+(defn has-value
+  "Returns if the desired map has the given value, returning
+   the associated key."
+   [m v]
+   (some #(if (= (val %) v) (key %)) m))
+
 (defn flag-value
   [value]
-  (some #(if (= (val %) value) (key %)) flags))
+  (has-value flags value))
+
 
 ;; Ono<->Tomahawk connections
 ;; Keyed by dbid
@@ -57,6 +64,11 @@
   "Handles errors and exceptions from agents"
   [ag excp]
   (println "An agent threw an exception:" excp))
+
+(defn is-dbsync-connection?
+  "Returns true if the given connection is a dbsyncconnection"
+  [ch]
+  (dosync (has-value @dbsync-connections ch)))
 
 (defn generate-json
   "Generates a vector to be serialized from a map"
@@ -95,8 +107,8 @@
 
 (defn handle-json-msg
   "Handles an incoming JSON message from a peer"
-  [ch peer body]
-  (println "Got JSON message from:" peer body)
+  [ch peer flag body]
+  (println "Got JSON message from:" peer body "compressed?" (test-flag flag (flag-value :COMPRESSED)))
   (let [msg (json/parse-string body)
         cmd (msg "method")
         key (msg "key")]
@@ -114,11 +126,11 @@
   "Handles the TCP message for a specific peer"
   [ch peer]
   (fn [[flag body]]
-    ; (println "Connection msg:" peer flag body)
+    (println "Connection msg:" peer flag body)
     (condp test-flag flag
       (flag-value :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body))
       (flag-value :PING)  :>> (fn [_] (print))  ;; Ignore PING messages for now, TODO if no ping in 10s, disconnect
-      (flag-value :JSON)  :>> (fn [_] (handle-json-msg ch peer body)))))
+      (flag-value :JSON)  :>> (fn [_] (handle-json-msg ch peer flag body)))))
 
 (defn add-peer-connection
     "Adds a new peer's connection (main ControlConnection or secondary connection)
@@ -138,7 +150,9 @@
             (if-not (known-peers foreign-dbid) 
               (alter known-peers assoc foreign-dbid {:host ip :port port})))
           (lamina/receive-all ch (get-tcp-handler ch foreign-dbid))
-          (lamina/enqueue ch handshake-msg)))
+          (lamina/enqueue ch handshake-msg)
+          (if (is-dbsync-connection? ch)
+            (lamina/enqueue ch (generate-json {:method "fetchops" :lastop ""})))))
         (fn [ch]
           ;; Failed
           (println "Failed to connect to" ip port ch))))
