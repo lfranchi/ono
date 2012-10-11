@@ -127,24 +127,25 @@
     (condp = cmd
       "dbsync-offer" :>> (fn [_] (let [host (dosync ((known-peers peer) :host))
                                        port (dosync ((known-peers peer) :port))]
-                                    (add-peer-connection host port peer key dbsync-connections))))))
+                                    (add-peer-connection host port peer key dbsync-connections)))
+      "fetchops"     :>>  (fn [_] (print))
+      (print) ;; default
+      )))
 
 (defn uncompress
   "Uncompresses the tcp request that has been compressed with zlib plus 4-byte big-endian size header"
    [bytes]
-   (let [shorter (Arrays/copyOfRange bytes 4 (- (count bytes) 4))
-         uncomp  (utils/inflate shorter)
-         strval  (String. (byte-array uncomp))]
-     strval))
+   (utils/inflate (Arrays/copyOfRange (byte-array bytes) 4 (count bytes))))
 
 (defn get-tcp-handler
   "Handles the TCP message for a specific peer"
   [ch peer]
   (fn handle-tcp-request[[flag body-bytes]]
-    (println "Connection msg:" peer flag)
+    (info "Connection msg:" peer flag)
     (if (test-flag flag (flag-value :COMPRESSED))
+      (do (info "Uncompressing, new flag:" (test-flag flag (flag-value :COMPRESSED)) (test-flag (bit-and (bit-not (flag-value :COMPRESSED)) flag) (flag-value :COMPRESSED)))
       (handle-tcp-request [(bit-and (bit-not (flag-value :COMPRESSED)) flag) ;; Remove COMPRESSED flag
-                           (uncompress body-bytes)]) ;; call ourselves w/ uncompressed body
+                           (uncompress body-bytes)])) ;; call ourselves w/ uncompressed body
       (let [body-str (java.lang.String. (byte-array body-bytes) (java.nio.charset.Charset/forName "utf-8"))]
         (condp test-flag flag
           (flag-value :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body-str))
