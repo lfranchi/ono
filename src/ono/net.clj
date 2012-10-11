@@ -105,6 +105,11 @@
 ;; but add-peer requires get-tcp-handler (which require handle-json-message)
 (declare add-peer-connection)
 
+(defn test-flag
+  "Does a not-zero?-bit-and of the arguments"
+  [x y]
+  (not (zero? (bit-and x y))))
+
 (defn handle-json-msg
   "Handles an incoming JSON message from a peer"
   [ch peer flag body]
@@ -116,11 +121,6 @@
       "dbsync-offer" :>> (fn [_] (let [host (dosync ((known-peers peer) :host))
                                        port (dosync ((known-peers peer) :port))]
                                     (add-peer-connection host port peer key dbsync-connections))))))
-
-(defn test-flag
-  "Does a not-zero?-bit-and of the arguments"
-  [x y]
-  (not (zero? (bit-and x y))))
 
 (defn get-tcp-handler
   "Handles the TCP message for a specific peer"
