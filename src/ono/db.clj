@@ -101,18 +101,18 @@
   (get-or-insert-id! source :where {:name dbid} :insert {:name dbid :friendlyname friendlyname}))
 
 (defn- do-add-files
-  "Internal agent add-files"
-  [source, files]
+  "Internal add-files. Returns a list of files that have the id added"
+  [msg, source, files]
   ; (info "GOT FILES" files)
-  (doseq [{:keys [track artist album year albumpos duration
-                    bitrate mtime size url]}
+  (assoc msg :files (for [{:keys [track artist album year albumpos duration
+                    bitrate mtime size url] :as file}
                     files]
-        (let [fileId ((insert fileT (values {:source_id source,
+        (let [fileId (get (insert fileT (values {:source_id source,
                                              :url       url
                                              :size      size
                                              :mtime     mtime
                                              :duration  duration
-                                             :bitrate   bitrate})) :last_insert_rowid())
+                                             :bitrate   bitrate})) (keyword "last_insert_rowid()"))
               artistId (get-or-insert-artist! artist)
               albumId  (get-or-insert-album! album, artistId)
               trackId  (get-or-insert-track! track, artistId)]
@@ -120,7 +120,8 @@
                                      :artist_id artistId
                                      :track_id trackId
                                      :album_id albumId
-                                     :albumpos albumpos})))))
+                                     :albumpos albumpos}))
+          (assoc file :id fileId)))))
 
 (defn get-ops-since
   "Load ops for this source since the desired op. If the op is nil, this
@@ -134,6 +135,17 @@
 
 ;; Dispatch central for db operations
 
+(defn clean-for-oplog
+  "Cleans a database command for insertion into the oplog. Some commands need to be tweaked
+   before being sent to peers, for example the 'url' field of the 'addfiles' command needs
+   to be replaced with the file id."
+   [msg]
+   (condp = (msg :command)
+      "addfiles"     :>> (fn [_] (assoc msg :files (for [file (msg :files)]
+                                                    (assoc file :url (file :id)))))
+
+      msg))
+
 (defn dispatch-db-cmd
   "Dispatches the given db command from a peer. The dbcmd is a map either from json or native
    client that describes the operation
@@ -141,33 +153,33 @@
    If the source is null (meaning this is a local dbcmd), it will be logged to the oplog
    and replicated to peers."
    [flags msg]
-   (condp = (msg :command)
-      "addfiles"                  :>> (fn [_]
-                                        (do-add-files (msg :source) (msg :files)))
-      "deletefiles"               :>> (fn [_] (print))
-      "createplaylist"            :>> (fn [_] (print))
-      "renameplaylist"            :>> (fn [_] (print))
-      "setplaylistrevision"       :>> (fn [_] (print))
-      "logplayback"               :>> (fn [_] (print))
-      "socialaction"              :>> (fn [_] (print))
-      "deleteplaylist"            :>> (fn [_] (print))
-      "setcollectionattributes"   :>> (fn [_] (print))
-      "setcollectionattributes"   :>> (fn [_] (print))
+   (let [newmsg (condp = (msg :command)
+                  "addfiles"                  :>> (fn [_]
+                                                    (do-add-files msg (msg :source) (msg :files)))
+                  "deletefiles"               :>> (fn [_] msg)
+                  "createplaylist"            :>> (fn [_] msg)
+                  "renameplaylist"            :>> (fn [_] msg)
+                  "setplaylistrevision"       :>> (fn [_] msg)
+                  "logplayback"               :>> (fn [_] msg)
+                  "socialaction"              :>> (fn [_] msg)
+                  "deleteplaylist"            :>> (fn [_] msg)
+                  "setcollectionattributes"   :>> (fn [_] msg)
+                  "setcollectionattributes"   :>> (fn [_] msg)
 
-      (println "Unknown command:" (msg :command)))
-   ;; Update lastop when applying
-   (let [msg-with-guid (if-not (msg :guid) (assoc msg :guid (utils/uuid)) msg)]
-     (when (msg-with-guid :source)
-       (update source
-         (set-fields {:lastop (msg-with-guid :guid)})
-         (where {:id [like (msg-with-guid :source)]})))
-     ;; Serialize all commands to oplog
-     (insert oplog (values {:source_id  (msg-with-guid :source)
-                            :guid       (msg-with-guid :guid)
-                            :command    (msg-with-guid :command)
-                            :singleton  0 ;; We don't support any singleton commands yet
-                            :compressed 0 ;; We don't compress on our end
-                            :json       (json/generate-string msg-with-guid)}))))
+                  (do (println "Unknown command:" (msg :command)) msg))]
+     ;; Update lastop when applying
+     (let [msg-with-guid (if-not (newmsg :guid) (assoc newmsg :guid (utils/uuid)) newmsg)]
+       (when (msg-with-guid :source)
+         (update source
+           (set-fields {:lastop (msg-with-guid :guid)})
+           (where {:id [like (msg-with-guid :source)]})))
+       ;; Serialize all commands to oplog
+       (insert oplog (values {:source_id  (msg-with-guid :source)
+                              :guid       (msg-with-guid :guid)
+                              :command    (msg-with-guid :command)
+                              :singleton  0 ;; We don't support any singleton commands yet
+                              :compressed 0 ;; We don't compress on our end
+                              :json       (json/generate-string (clean-for-oplog msg-with-guid))})))))
 
 (defn add-files
     "Adds a list of file maps to the database, from the local user"

@@ -89,7 +89,8 @@
   [input]
   (parse-args input
               :match-list {
-                                 "help" (fn [_] (println "Supported commands:
+                                 "help" (fn [_] (println 
+"Supported commands:
 
 help:                         Show this help message
 scan [folder]:                Scan the folder for music
