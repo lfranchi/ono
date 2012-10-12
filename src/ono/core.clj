@@ -40,17 +40,17 @@
               audio (org.jaudiotagger.audio.AudioFileIO/read fd)
               tag (.getTag audio)
               header (.getAudioHeader audio)]
-            {:track  (.getFirst tag org.jaudiotagger.tag.FieldKey/TITLE)
-              :artist (.getFirst tag org.jaudiotagger.tag.FieldKey/ARTIST)
-              :album  (.getFirst tag org.jaudiotagger.tag.FieldKey/ALBUM)
-              :year   (.getFirst tag org.jaudiotagger.tag.FieldKey/YEAR)
-              :albumpos  (.getFirst tag org.jaudiotagger.tag.FieldKey/TRACK)
-              :duration (.getTrackLength header)
-              :bitrate (.getSampleRateAsNumber header)
-              :mtime  (fs/mod-time fd)
-              :size   (fs/size fd)
-              :url   f
-              :source nil})))
+            {:track       (.getFirst tag org.jaudiotagger.tag.FieldKey/TITLE)
+              :artist     (.getFirst tag org.jaudiotagger.tag.FieldKey/ARTIST)
+              :album      (.getFirst tag org.jaudiotagger.tag.FieldKey/ALBUM)
+              :year       (.getFirst tag org.jaudiotagger.tag.FieldKey/YEAR)
+              :albumpos   (.getFirst tag org.jaudiotagger.tag.FieldKey/TRACK)
+              :duration   (.getTrackLength header)
+              :bitrate    (.getSampleRateAsNumber header)
+              :mtime      (fs/mod-time fd)
+              :size       (fs/size fd)
+              :url        (.getAbsolutePath f)
+              :source     nil})))
 
 (defn- starts-with?
   [input match]
@@ -66,8 +66,7 @@
    The associated function must take a list of arguments."
   [input & {matches :match-list default :default}]
   `(if-let [matching-keys# (seq
-                            (for [k# (keys ~matches) :when (starts-with? ~input k#)] k#)
-                            )]
+                            (for [k# (keys ~matches) :when (starts-with? ~input k#)] k#))]
     ((first (vals (select-keys ~matches matching-keys#)))
       (rest (clojure.string/split ~input #" ")))
     (~default)))

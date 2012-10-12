@@ -23,3 +23,7 @@
   [byte-seq]
   (let [inflater (Inflater.)]
     (inflate! inflater byte-seq)))
+
+(defn uuid
+  []
+  (str (java.util.UUID/randomUUID)))

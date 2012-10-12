@@ -2,13 +2,15 @@
     (:use [korma.db]
           [korma.core]
           [clojure.tools.logging])
-    (:require [fs.core :as fs]))
+    (:require [fs.core :as fs]
+              [ono.utils :as utils]
+              [cheshire.core :as json]))
 
 ;; TODO properly generate dbid UUID when initalizing a new
 ;; database
 (def dbid "55bd135d-113f-481a-977e-999911111111")
 
-(def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :file "/test/mp3", :source 0 })
+(def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :url "/test/mp3", :source 0 })
 (def dbworker (agent nil))
 
 (defn with-sort-name
@@ -28,6 +30,8 @@
           (fs/chdir (str fs/*cwd* "/resources"))
           (fs/exec (str "./setupdb.sh"))))
       )
+
+    (set-error-handler! dbworker (fn [a e] (println "AGENT ERROR:" a e)))
 
     (defdb sqlite (sqlite3 {:db dbFile}))
 
@@ -99,7 +103,7 @@
 (defn- do-add-files
   "Internal agent add-files"
   [source, files]
-  (info "GOT FILES" files)
+  ; (info "GOT FILES" files)
   (doseq [{:keys [track artist album year albumpos duration
                     bitrate mtime size url]}
                     files]
@@ -116,8 +120,7 @@
                                      :artist_id artistId
                                      :track_id trackId
                                      :album_id albumId
-                                     :albumpos albumpos}))
-          )))
+                                     :albumpos albumpos})))))
 
 ;; Dispatch central for db operations
 
@@ -125,24 +128,43 @@
   "Dispatches the given db command from a peer. The dbcmd is a map either from json or native
    client that describes the operation
 
-   If the sourceid is null (meaning this is a local dbcmd), it will be logged to the oplog
+   If the source is null (meaning this is a local dbcmd), it will be logged to the oplog
    and replicated to peers."
    [flags msg]
    (condp = (msg :command)
       "addfiles"                  :>> (fn [_]
-                                        (println "ADD FILES COMMAND:" msg)
                                         (do-add-files (msg :source) (msg :files)))
-      "createplaylist"            :>> (fn[_] (print)) ;; Not implemented
+      "deletefiles"               :>> (fn [_] (print))
+      "createplaylist"            :>> (fn [_] (print))
+      "renameplaylist"            :>> (fn [_] (print))
       "setplaylistrevision"       :>> (fn [_] (print))
       "logplayback"               :>> (fn [_] (print))
+      "socialaction"              :>> (fn [_] (print))
+      "deleteplaylist"            :>> (fn [_] (print))
+      "setcollectionattributes"   :>> (fn [_] (print))
+      "setcollectionattributes"   :>> (fn [_] (print))
 
-      (println "Unknown command:" (msg :command))))
+      (println "Unknown command:" (msg :command)))
+   ;; Update lastop when applying
+   (let [msg-with-guid (if-not (msg :guid) (assoc msg :guid (utils/uuid)) msg)]
+     (when (msg-with-guid :source)
+       (update source
+         (set-fields {:lastop (msg-with-guid :guid)})
+         (where {:id [like (msg-with-guid :source)]})))
+     ;; Serialize local commands
+     (when-not (msg :source)
+        (insert oplog (values {:source_id  (msg-with-guid :source)
+                               :guid       (msg-with-guid :guid)
+                               :command    (msg-with-guid :command)
+                               :singleton  0 ;; We don't support any singleton commands yet
+                               :compressed 0 ;; We don't compress on our end
+                               :json       (json/generate-string msg-with-guid)})))))
 
 (defn add-files
     "Adds a list of file maps to the database, from the local user"
     [files]
-    ;;(println (str "Adding number of files: " (count files)))
-    (send-off dbworker #(do-add-files nil %2) files))
+    ; (println (str "Adding number of files: " (count files)))
+    (send-off dbworker #(dispatch-db-cmd 0 {:command "addfiles" :files %2}) files))
 
 (defn numfiles
     "Returns how many files are in the local collection"
