@@ -8,7 +8,7 @@
 
 ;; TODO properly generate dbid UUID when initalizing a new
 ;; database
-(def dbid "55bd135d-113f-481a-977e-999911111111")
+(def dbid "55bd135d-113f-481a-977e-999991111114")
 
 (def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :url "/test/mp3", :source 0 })
 (def dbworker (agent nil))
@@ -122,6 +122,16 @@
                                      :album_id albumId
                                      :albumpos albumpos})))))
 
+(defn get-ops-since
+  "Load ops for this source since the desired op. If the op is nil, this
+   will return all ops for this source"
+   [source since]
+   (await dbworker)
+   (select oplog (fields :guid :command :singleton :compressed :json)
+                 (where {:source_id [= source]
+                         :id [> (sqlfn coalesce (subselect oplog (fields [:id]) (where {:guid [like since]})) 0)]})))
+     ; (println "Found ops:" ops)))
+
 ;; Dispatch central for db operations
 
 (defn dispatch-db-cmd
@@ -151,14 +161,13 @@
        (update source
          (set-fields {:lastop (msg-with-guid :guid)})
          (where {:id [like (msg-with-guid :source)]})))
-     ;; Serialize local commands
-     (when-not (msg :source)
-        (insert oplog (values {:source_id  (msg-with-guid :source)
-                               :guid       (msg-with-guid :guid)
-                               :command    (msg-with-guid :command)
-                               :singleton  0 ;; We don't support any singleton commands yet
-                               :compressed 0 ;; We don't compress on our end
-                               :json       (json/generate-string msg-with-guid)})))))
+     ;; Serialize all commands to oplog
+     (insert oplog (values {:source_id  (msg-with-guid :source)
+                            :guid       (msg-with-guid :guid)
+                            :command    (msg-with-guid :command)
+                            :singleton  0 ;; We don't support any singleton commands yet
+                            :compressed 0 ;; We don't compress on our end
+                            :json       (json/generate-string msg-with-guid)}))))
 
 (defn add-files
     "Adds a list of file maps to the database, from the local user"

@@ -85,8 +85,10 @@
 
 (defn generate-json
   "Generates a vector to be serialized from a map"
-  [msg-data]
-  [(flag-value :JSON) (.getBytes (json/generate-string msg-data) (java.nio.charset.Charset/forName "utf-8"))])
+  ([msg-data]
+    [(flag-value :JSON) (utils/str-bytes (json/generate-string msg-data))])
+  ([msg-data extra-flags]
+    [(bit-or (flag-value :JSON) extra-flags) (utils/str-bytes (json/generate-string msg-data))]))
 
 (defn get-handshake-msg
   "Returns a JSON handshake msg from zeroconf peers"
@@ -114,11 +116,6 @@
     (when (= body "4") ;; We only support protocol 4
       (lamina/enqueue ch [(flag-value :SETUP) "ok"])))
 
-; (defn handle-db-cmd
-;   "Handles a database command that is received over the network"
-;   [ch peer flag msg]
-;   (println "Handling DBCMD" (msg "command")))
-
 ;; Forward-declare add-peer as it is required by handle-json-msg
 ;; but add-peer requires get-tcp-handler (which require handle-json-message)
 (declare add-peer-connection)
@@ -128,6 +125,20 @@
   [x y]
   (not (zero? (bit-and x y))))
 
+(defn send-ops-from
+  "Send all ops for the desired source, through the given channel,
+   that are later than the given op."
+   [ch source lastop]
+   (println "Sending ops from" lastop "with source" source "to channel")
+   (if-let [ops (ono.db/get-ops-since source lastop)]
+       (let [flags #(bit-or (flag-value :DBOP) (if (= % (last ops)) 0 (flag-value :FRAGMENT)))]
+         (doseq [cmd ops]
+           (println "SENDING DBOP:" (cmd :guid) (cmd :command) (flags cmd) "body:" (cmd :json))
+           (lamina/enqueue ch (generate-json cmd (flags cmd)))))
+     (lamina/enqueue ch [(flag-value :DBOP) (utils/str-bytes "ok")]))) ;; else if there are no new ops, send OK message
+     ; (doseq [cmd ops]
+     ;   (println "Sending CMD in fetchops:" (cmd :command)))))
+
 (defn handle-json-msg
   "Handles an incoming JSON message from a peer"
   [ch peer flag body]
@@ -136,10 +147,10 @@
         key (msg :key)]
     ; (print "Handing MSG" cmd key)
     (condp = cmd
-      "dbsync-offer" :>> (fn [_] (let [host (dosync ((known-peers peer) :host))
+      "dbsync-offer" :>>  (fn [_] (let [host (dosync ((known-peers peer) :host))
                                        port (dosync ((known-peers peer) :port))]
                                     (add-peer-connection host port peer key dbsync-connections)))
-      "fetchops"     :>>  (fn [_] (print))
+      "fetchops"     :>>  (fn [_] (send-ops-from ch nil (msg :lastop)))
       (print))
     ;; DBop messages only have a "command" field
     (when (msg :command)
@@ -183,9 +194,9 @@
             (if-not (known-peers foreign-dbid) 
               (alter known-peers assoc foreign-dbid {:host ip :port port})))
           (lamina/receive-all ch (get-tcp-handler ch foreign-dbid))
-          (lamina/enqueue ch handshake-msg)
-          (if (is-dbsync-connection? ch) ;; HACK for development only, force fetch of all dbops
-            (lamina/enqueue ch (generate-json {:method "fetchops" :lastop ""})))))
+          (lamina/enqueue ch handshake-msg)))
+          ; (if (is-dbsync-connection? ch) ;; HACK for development only, force fetch of all dbops
+            ; (lamina/enqueue ch (generate-json {:method "fetchops" :lastop ""})))))
         (fn [ch]
           ;; Failed
           (println "Failed to connect to" ip port ch))))

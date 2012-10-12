@@ -27,3 +27,7 @@
 (defn uuid
   []
   (str (java.util.UUID/randomUUID)))
+
+(defn str-bytes
+  [s]
+  (.getBytes s (java.nio.charset.Charset/forName "utf-8")))
