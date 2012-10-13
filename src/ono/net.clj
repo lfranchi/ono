@@ -24,21 +24,21 @@
 
 ;; TCP protocol
 (def tcp-port 55555)
-(def flags {1   :RAW
-            2   :JSON
-            4   :FRAGMENT
-            8   :COMPRESSED
-            16  :DBOP
-            32  :PING
-            64  :RESERVED
-            128 :SETUP})
+(def flags {:RAW        1
+            :JSON       2
+            :FRAGMENT   4
+            :COMPRESSED 8
+            :DBOP       16
+            :PING       32
+            :RESERVED   64
+            :SETUP      128})
 (defn has-value
   "Returns if the desired map has the given value, returning
    the associated key."
    [m v]
    (some #(if (= (val %) v) (key %)) m))
 
-(defn flag-value
+(defn flag-from-value
   [value]
   (has-value flags value))
 
@@ -86,9 +86,9 @@
 (defn generate-json
   "Generates a vector to be serialized from a map"
   ([msg-data]
-    [(flag-value :JSON) (utils/str-bytes (json/generate-string msg-data))])
+    [(flags :JSON) (utils/str-bytes (json/generate-string msg-data))])
   ([msg-data extra-flags]
-    [(bit-or (flag-value :JSON) extra-flags) (utils/str-bytes (json/generate-string msg-data))]))
+    [(bit-or (flags :JSON) extra-flags) (utils/str-bytes (json/generate-string msg-data))]))
 
 (defn get-handshake-msg
   "Returns a JSON handshake msg from zeroconf peers"
@@ -105,7 +105,7 @@
    active peer connection"
    [_]
    (doseq [ch (dosync (vals @control-connections))]
-            (lamina/enqueue ch [(flag-value :PING) ""]))
+            (lamina/enqueue ch [(flags :PING) ""]))
    (. Thread (sleep 5000))
    (send-off ping-agent ping-peers))
 
@@ -114,7 +114,7 @@
    is received"
    [ch peer flag body]
     (when (= body "4") ;; We only support protocol 4
-      (lamina/enqueue ch [(flag-value :SETUP) "ok"])))
+      (lamina/enqueue ch [(flags :SETUP) "ok"])))
 
 ;; Forward-declare add-peer as it is required by handle-json-msg
 ;; but add-peer requires get-tcp-handler (which require handle-json-message)
@@ -131,12 +131,12 @@
    [ch source lastop]
    (println "Sending ops from" lastop "with source" source "to channel")
    (if-let [ops (ono.db/get-ops-since source lastop)]
-       (let [flags #(bit-or (flag-value :DBOP) (if (= % (last ops)) 0 (flag-value :FRAGMENT)))]
+       (let [flags #(bit-or (flags :DBOP) (if (= % (last ops)) 0 (flags :FRAGMENT)))]
          (doseq [cmd ops]
            (println "SENDING DBOP:" (cmd :guid) (cmd :command) (flags cmd) "body:" (cmd :json))
-           (lamina/enqueue ch [(bit-or (flag-value :JSON) (flag-value :DBOP))
+           (lamina/enqueue ch [(bit-or (flags :JSON) (flags :DBOP))
                                (utils/str-bytes (cmd :json))]))))
-     (lamina/enqueue ch [(flag-value :DBOP) (utils/str-bytes "ok")])) ;; else if there are no new ops, send OK message
+     (lamina/enqueue ch [(flags :DBOP) (utils/str-bytes "ok")])) ;; else if there are no new ops, send OK message
      ; (doseq [cmd ops]
      ;   (println "Sending CMD in fetchops:" (cmd :command)))))
 
@@ -168,14 +168,14 @@
   [ch peer]
   (fn handle-tcp-request[[flag body-bytes]]
     ; (info "Connection msg:" `peer flag)
-    (if (test-flag flag (flag-value :COMPRESSED))
-      (handle-tcp-request [(bit-and (bit-not (flag-value :COMPRESSED)) flag) ;; Remove COMPRESSED flag
+    (if (test-flag flag (flags :COMPRESSED))
+      (handle-tcp-request [(bit-and (bit-not (flags :COMPRESSED)) flag) ;; Remove COMPRESSED flag
                            (uncompress body-bytes)]) ;; call ourselves w/ uncompressed body
       (let [body-str (String. (byte-array body-bytes) (java.nio.charset.Charset/forName "utf-8"))]
         (condp test-flag flag
-          (flag-value :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body-str))
-          (flag-value :PING)  :>> (fn [_] (print))  ;; Ignore PING messages for now, TODO if no ping in 10s, disconnect
-          (flag-value :JSON)  :>> (fn [_] (handle-json-msg ch peer flag body-str)))))))
+          (flags :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body-str))
+          (flags :PING)  :>> (fn [_] (print))  ;; Ignore PING messages for now, TODO if no ping in 10s, disconnect
+          (flags :JSON)  :>> (fn [_] (handle-json-msg ch peer flag body-str)))))))
 
 (defn add-peer-connection
     "Adds a new peer's connection (main ControlConnection or secondary connection)
