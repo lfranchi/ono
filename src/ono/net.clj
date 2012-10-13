@@ -1,10 +1,10 @@
 (ns ono.net
-    (:use [clojure.tools.logging])
+    (:use [clojure.tools.logging]
+          [gloss.core]
+          [gloss.io])
     (:require [ono.db :as db]
               [ono.utils :as utils]
               [cheshire.core :as json]
-              [gloss.io :as gio]
-              [gloss.core :as gloss]
               [aleph.tcp :as tcp]
               [lamina.core :as lamina]
               [clojure.data.codec.base64 :as b64])
@@ -42,6 +42,11 @@
   [value]
   (has-value flags value))
 
+(defn test-flag
+  "Does a not-zero?-bit-and of the arguments"
+  [x y]
+  (not (zero? (bit-and x y))))
+
 
 ;; Ono<->Tomahawk connections
 ;; Keyed by dbid
@@ -53,19 +58,40 @@
 
 (def ping-agent (agent nil))
 
-(def running true)
+;; Gloss frame definitions
+(defn tagged-frame [tag frame]
+  (compile-frame frame
+                 (fn [[tag2 body]]
+                   (assert (= tag tag2))
+                   body)
+                 (fn [body]
+                   [tag body])))
 
-;; Network protocol
-; (def frame (gloss/finite-frame
-;  (gloss/prefix 
-;     :int32
-;     inc
-;     dec)
-;  [:ubyte (gloss/string :utf-8)]))
+(defn tagged [head tag->frame]
+  (let [tag->tagged-frame (into {} (for [[tag frame] tag->frame]
+                                     [tag (tagged-frame tag frame)]))]
+    (header head
+     tag->tagged-frame
+     (fn [[tag body]] tag))))
 
-(def frame (gloss/finite-frame
-  (gloss/prefix :int32 inc dec)
-  [:ubyte (gloss/repeated :byte :prefix :none)]))
+(defcodec raw
+  (string :utf-8))
+
+(defcodec compressed
+  (repeated :ubyte :prefix :none))
+
+(defcodec inner-frame
+  (tagged (enum :ubyte :raw :compressed)
+          {:raw raw
+           :compressed compressed}))
+
+(defcodec frame
+  (finite-frame
+    (prefix 
+      :int32
+      inc
+      dec)
+    inner-frame))
 
 ;; Utility functions
 (defn agent-error-handler
@@ -86,9 +112,9 @@
 (defn generate-json
   "Generates a vector to be serialized from a map"
   ([msg-data]
-    [(flags :JSON) (utils/str-bytes (json/generate-string msg-data))])
+    [(flags :JSON) (json/generate-string msg-data)])
   ([msg-data extra-flags]
-    [(bit-or (flags :JSON) extra-flags) (utils/str-bytes (json/generate-string msg-data))]))
+    [(bit-or (flags :JSON) extra-flags) (json/generate-string msg-data)]))
 
 (defn get-handshake-msg
   "Returns a JSON handshake msg from zeroconf peers"
@@ -120,11 +146,6 @@
 ;; but add-peer requires get-tcp-handler (which require handle-json-message)
 (declare add-peer-connection)
 
-(defn test-flag
-  "Does a not-zero?-bit-and of the arguments"
-  [x y]
-  (not (zero? (bit-and x y))))
-
 (defn send-ops-from
   "Send all ops for the desired source, through the given channel,
    that are later than the given op."
@@ -135,8 +156,8 @@
          (doseq [cmd ops]
            (println "SENDING DBOP:" (cmd :guid) (cmd :command) (flags cmd) "body:" (cmd :json))
            (lamina/enqueue ch [(bit-or (flags :JSON) (flags :DBOP))
-                               (utils/str-bytes (cmd :json))]))))
-     (lamina/enqueue ch [(flags :DBOP) (utils/str-bytes "ok")])) ;; else if there are no new ops, send OK message
+                               (cmd :json)]))))
+     (lamina/enqueue ch [(flags :DBOP) "ok"])) ;; else if there are no new ops, send OK message
      ; (doseq [cmd ops]
      ;   (println "Sending CMD in fetchops:" (cmd :command)))))
 
