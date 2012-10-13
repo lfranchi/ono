@@ -8,7 +8,7 @@
 
 ;; TODO properly generate dbid UUID when initalizing a new
 ;; database
-(def dbid "55bd135d-113f-481a-977e-999991111114")
+(def dbid "55bd135d-113f-481a-977e-999991111121")
 
 (def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :url "/test/mp3", :source 0 })
 (def dbworker (agent nil))

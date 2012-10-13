@@ -134,8 +134,9 @@
        (let [flags #(bit-or (flag-value :DBOP) (if (= % (last ops)) 0 (flag-value :FRAGMENT)))]
          (doseq [cmd ops]
            (println "SENDING DBOP:" (cmd :guid) (cmd :command) (flags cmd) "body:" (cmd :json))
-           (lamina/enqueue ch (generate-json cmd (flags cmd)))))
-     (lamina/enqueue ch [(flag-value :DBOP) (utils/str-bytes "ok")]))) ;; else if there are no new ops, send OK message
+           (lamina/enqueue ch [(bit-or (flag-value :JSON) (flag-value :DBOP))
+                               (utils/str-bytes (cmd :json))]))))
+     (lamina/enqueue ch [(flag-value :DBOP) (utils/str-bytes "ok")])) ;; else if there are no new ops, send OK message
      ; (doseq [cmd ops]
      ;   (println "Sending CMD in fetchops:" (cmd :command)))))
 
