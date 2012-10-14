@@ -48,7 +48,6 @@
 (defn test-flag
   "Does a not-zero?-bit-and of the arguments"
   [x y]
-  (println "TESTING" x y)
   (not (zero? (bit-and x y))))
 
 
@@ -64,25 +63,22 @@
 
 ;; Gloss frame definitions
 (defn tagged-frame [orig tag frame]
-  (println "TAGGING FRAME" orig tag frame)
   (compile-frame frame
                  (fn [[tag2 body]]
-                   ; (assert (test-flag (flags tag) tag2))
-                   (println "PRE:" orig tag tag2 body)
                    body)
                  (fn [body]
-                  (println "POST" orig tag body)
                    [orig body])))
 
 (defn tagged [head tag->frame]
   (let [tag->tagged-frame-map (fn [origtag tag->frame] (into {} (for [[tag frame] tag->frame]
                                      [tag (tagged-frame origtag tag frame)])))
-        tag->tagged-frame     (fn [tag] (println "HEAD->BODY" tag) (first (for [[ktag frame] (tag->tagged-frame-map tag tag->frame) :when (test-flag tag (flags ktag))] 
-                                          (do (println "matching" tag "orig in frame:" ktag) frame))))]
-    (println "Map:" tag->frame "GOT" (tag->tagged-frame-map :COMPRESSED tag->frame))
+        tag->tagged-frame     (fn [tag] 
+                                (first (for [[ktag frame] (tag->tagged-frame-map tag tag->frame) 
+                                              :when (test-flag tag (flags ktag))] 
+                                         frame)))]
     (header head
      tag->tagged-frame
-     (fn [[tag body]] (println "BODY->HEAD" tag body) tag))))
+     (fn [[tag body]] tag))))
 
 (defcodec raw
   (string :utf-8))
@@ -102,11 +98,6 @@
       inc
       dec)
     inner-frame))
-(decode frame (encode frame [(flags :DBOP) "0123456789"]))
-
-(encode frame [(flags :COMPRESSED) (.getBytes "0123456789")])
-(encode frame [:JSON "0123456789"])
-(decode frame (encode frame [:JSON "0123456789"]))
 
 ;; Utility functions
 (defn agent-error-handler
@@ -195,23 +186,23 @@
       (ono.db/dispatch-db-cmd flag (assoc msg :source (source-for-peer peer))))))
 
 (defn uncompress
-  "Uncompresses the tcp request that has been compressed with zlib plus 4-byte big-endian size header"
+  "Uncompresses the tcp request that has been compressed with zlib plus 4-byte big-endian size header.
+   Returns the uncompressed bytes inflated into a utf-8 string."
    [bytes]
-   (utils/inflate (Arrays/copyOfRange (byte-array bytes) 4 (count bytes))))
+   (String. (utils/inflate (Arrays/copyOfRange (byte-array bytes) 4 (count bytes))) (java.nio.charset.Charset/forName "utf-8")))
 
 (defn get-tcp-handler
   "Handles the TCP message for a specific peer"
   [ch peer]
-  (fn handle-tcp-request[[flag body-bytes]]
-    ; (info "Connection msg:" `peer flag)
+  (fn handle-tcp-request[[flag body]]
+    ; (info "Connection msg:" peer flag)
     (if (test-flag flag (flags :COMPRESSED))
       (handle-tcp-request [(bit-and (bit-not (flags :COMPRESSED)) flag) ;; Remove COMPRESSED flag
-                           (uncompress body-bytes)]) ;; call ourselves w/ uncompressed body
-      (let [body-str (String. (byte-array body-bytes) (java.nio.charset.Charset/forName "utf-8"))]
-        (condp test-flag flag
-          (flags :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body-str))
-          (flags :PING)  :>> (fn [_] (print))  ;; Ignore PING messages for now, TODO if no ping in 10s, disconnect
-          (flags :JSON)  :>> (fn [_] (handle-json-msg ch peer flag body-str)))))))
+                           (uncompress body)])                          ;; call ourselves w/ uncompressed body
+      (condp test-flag flag
+        (flags :SETUP) :>> (fn [_] (handle-handshake-msg ch peer flag body))
+        (flags :PING)  :>> (fn [_] (print))  ;; Ignore PING messages for now, TODO if no ping in 10s, disconnect
+        (flags :JSON)  :>> (fn [_] (handle-json-msg ch peer flag body))))))
 
 (defn add-peer-connection
     "Adds a new peer's connection (main ControlConnection or secondary connection)
