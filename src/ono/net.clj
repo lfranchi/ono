@@ -31,7 +31,10 @@
             :DBOP       16
             :PING       32
             :RESERVED   64
-            :SETUP      128})
+            :SETUP      128
+            ;; Magic fall-through
+            :ANY        (bit-not 0)})
+
 (defn has-value
   "Returns if the desired map has the given value, returning
    the associated key."
@@ -45,6 +48,7 @@
 (defn test-flag
   "Does a not-zero?-bit-and of the arguments"
   [x y]
+  (println "TESTING" x y)
   (not (zero? (bit-and x y))))
 
 
@@ -59,20 +63,26 @@
 (def ping-agent (agent nil))
 
 ;; Gloss frame definitions
-(defn tagged-frame [tag frame]
+(defn tagged-frame [orig tag frame]
+  (println "TAGGING FRAME" orig tag frame)
   (compile-frame frame
                  (fn [[tag2 body]]
-                   (assert (= tag tag2))
+                   ; (assert (test-flag (flags tag) tag2))
+                   (println "PRE:" orig tag tag2 body)
                    body)
                  (fn [body]
-                   [tag body])))
+                  (println "POST" orig tag body)
+                   [orig body])))
 
 (defn tagged [head tag->frame]
-  (let [tag->tagged-frame (into {} (for [[tag frame] tag->frame]
-                                     [tag (tagged-frame tag frame)]))]
+  (let [tag->tagged-frame-map (fn [origtag tag->frame] (into {} (for [[tag frame] tag->frame]
+                                     [tag (tagged-frame origtag tag frame)])))
+        tag->tagged-frame     (fn [tag] (println "HEAD->BODY" tag) (first (for [[ktag frame] (tag->tagged-frame-map tag tag->frame) :when (test-flag tag (flags ktag))] 
+                                          (do (println "matching" tag "orig in frame:" ktag) frame))))]
+    (println "Map:" tag->frame "GOT" (tag->tagged-frame-map :COMPRESSED tag->frame))
     (header head
      tag->tagged-frame
-     (fn [[tag body]] tag))))
+     (fn [[tag body]] (println "BODY->HEAD" tag body) tag))))
 
 (defcodec raw
   (string :utf-8))
@@ -81,9 +91,9 @@
   (repeated :ubyte :prefix :none))
 
 (defcodec inner-frame
-  (tagged (enum :ubyte :raw :compressed)
-          {:raw raw
-           :compressed compressed}))
+  (tagged :ubyte
+          {:COMPRESSED compressed
+           :ANY        raw})) ;; Fall through to string if not compressed
 
 (defcodec frame
   (finite-frame
@@ -92,6 +102,11 @@
       inc
       dec)
     inner-frame))
+(decode frame (encode frame [(flags :DBOP) "0123456789"]))
+
+(encode frame [(flags :COMPRESSED) (.getBytes "0123456789")])
+(encode frame [:JSON "0123456789"])
+(decode frame (encode frame [:JSON "0123456789"]))
 
 ;; Utility functions
 (defn agent-error-handler
