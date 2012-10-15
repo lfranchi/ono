@@ -6,8 +6,7 @@
               [ono.utils :as utils]
               [cheshire.core :as json]
               [aleph.tcp :as tcp]
-              [lamina.core :as lamina]
-              [clojure.data.codec.base64 :as b64])
+              [lamina.core :as lamina])
     (:import (java.net InetAddress DatagramPacket DatagramSocket)
              (java.util Arrays)))
 

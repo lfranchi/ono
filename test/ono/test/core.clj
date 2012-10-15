@@ -1,6 +1,4 @@
 (ns ono.test.core
-  (:use [ono.core])
-  (:use [clojure.test]))
+  (:use [ono.core]
+        [midje.sweet]))
 
-(deftest replace-me ;; FIXME: write
-  (is false "No tests have been written."))

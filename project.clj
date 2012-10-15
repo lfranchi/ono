@@ -10,6 +10,12 @@
         				 [org.xerial/sqlite-jdbc "3.7.2"]
         				 [org.jaudiotagger/jaudiotagger "2.0.1"] ;; ID3/FLAC tagging library
                  [aleph "0.3.0-beta2"] ;; TCP abstraction layer
-                 [org.clojure/data.codec "0.1.0"] ;; Base64 decoding
                  [log4j/log4j "1.2.16"]] ;; Logging
+   :dev-dependencies [[lein-midje "1.0.10"]
+                      [midje "1.4.0"] ;; unit testing 
+                      [com.stuartsierra/lazytest "1.2.3"]
+                      [org.clojure/data.codec "0.1.0"]]
+
+  :repositories {"stuart" "http://stuartsierra.com/maven2"}
+
   :main ono.core)
