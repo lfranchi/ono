@@ -6,9 +6,7 @@
               [ono.utils :as utils]
               [cheshire.core :as json]))
 
-;; TODO properly generate dbid UUID when initalizing a new
-;; database
-(def dbid "55bd135d-113f-481a-977e-999991111124")
+(def dbid (atom nil))
 
 (def testtrack { :title "One",:artist "U2", :album "Joshua Tree" , :year 1992 , :track 3 , :duration 240, :bitrate 256, :mtime 123123123 , :size 0,  :url "/test/mp3", :source 0 })
 (def dbworker (agent nil))
@@ -62,7 +60,17 @@
         (belongs-to fileT artist track album))
 
     (defentity oplog
-      (entity-fields :source_id :guid :command :singleton :compressed :json)))
+      (entity-fields :source_id :guid :command :singleton :compressed :json))
+
+    (defentity settings
+      (pk :k)
+      (entity-fields :k :v))
+
+    (if-let [id (seq (select settings (fields :v) (where {:k "dbid"})))]
+      (reset! dbid id)
+      (let [new-dbid (utils/uuid)]
+        (insert settings (values { :k "dbid" :v new-dbid }))
+        (reset! dbid new-dbid))))
 
 ;; Utility functions for DB operations
 (defmacro get-or-insert-id!

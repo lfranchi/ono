@@ -59,3 +59,8 @@ CREATE TABLE IF NOT EXISTS oplog (
 );
 CREATE UNIQUE INDEX oplog_guid ON oplog(guid);
 CREATE INDEX oplog_source ON oplog(source);
+
+CREATE TABLE IF NOT EXISTS settings (
+    k TEXT NOT NULL PRIMARY KEY,
+    v TEXT NOT NULL DEFAULT ''
+);

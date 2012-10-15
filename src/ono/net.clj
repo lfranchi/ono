@@ -174,8 +174,8 @@
           ;;  or a secondary connection
           ; (println "ARE WE SENDING FIRST MSG?" foreign-dbid connection-type (get-connection data connection-type foreign-dbid))
           (if (get-connection data connection-type foreign-dbid)
-            (generate-json (assoc main-msg :controlid db/dbid)) ;; All subsequent (dbsync and stream connections) require controlid
-            (generate-json (assoc main-msg :nodeid db/dbid))))) ;; ControlConnection (first connection) requires nodeid
+            (generate-json (assoc main-msg :controlid @db/dbid)) ;; All subsequent (dbsync and stream connections) require controlid
+            (generate-json (assoc main-msg :nodeid @db/dbid))))) ;; ControlConnection (first connection) requires nodeid
 
 (defn ping-peers
   "Sends a PING message every 10 minutes to any
