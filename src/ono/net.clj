@@ -98,14 +98,6 @@
   [data peerid key]
   (get-in @data [:known-peers peerid key]))
 
-; ;; Ono<->Tomahawk connections
-; ;; Keyed by dbid
-; (def control-connections (ref {}))
-; (def dbsync-connections (ref {}))
-
-; ;; Bookkeeping: dbid<--> {:host :port :sourceid}
-; (def known-peers (ref {}))
-
 (def ping-agent (agent nil))
 
 ;; Gloss frame definitions
