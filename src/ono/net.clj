@@ -240,7 +240,7 @@
             (add-peer-data! data foreign-dbid :host ip)
             (add-peer-data! data foreign-dbid :port port))
           (lamina/receive-all ch (get-tcp-handler data ch foreign-dbid))
-          (lamina/enqueue ch handshake-msg)
+          (lamina/enqueue ch handshake-msg)))
           ; (if (= ch (get-in @data [:dbsync-connections foreign-dbid])) ;; HACK for development only, force fetch of all dbops
             ; (lamina/enqueue ch (generate-json {:method "fetchops" :lastop ""})))))
         (fn [ch]
