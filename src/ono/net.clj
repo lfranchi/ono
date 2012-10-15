@@ -30,9 +30,7 @@
             :DBOP       16
             :PING       32
             :RESERVED   64
-            :SETUP      128
-            ;; Magic fall-through
-            :ANY        (bit-not 0)})
+            :SETUP      128})
 
 (defn has-value
   "Returns if the desired map has the given value, returning
@@ -101,42 +99,23 @@
 (def ping-agent (agent nil))
 
 ;; Gloss frame definitions
-(defn tagged-frame [orig tag frame]
-  (compile-frame frame
-                 (fn [[tag2 body]]
-                   body)
-                 (fn [body]
-                   [orig body])))
+(def inner (compile-frame 
+               [:ubyte (repeated :byte :prefix :none)]
+               (fn [[flag body]] (let [b (if (test-flag flag (flags :COMPRESSED))
+                                        body
+                                        (.getBytes body))]
+                                   [flag b]))
+               (fn [[flag body]] (let [b (if (test-flag flag (flags :COMPRESSED))
+                                          (byte-array body)
+                                          (String. (byte-array body) (java.nio.charset.Charset/forName "utf-8")))]
+                                   [flag b]))))
 
-(defn tagged [head tag->frame]
-  (let [tag->tagged-frame-map (fn [origtag tag->frame] (into {} (for [[tag frame] tag->frame]
-                                     [tag (tagged-frame origtag tag frame)])))
-        tag->tagged-frame     (fn [tag] 
-                                (first (for [[ktag frame] (tag->tagged-frame-map tag tag->frame) 
-                                              :when (test-flag tag (flags ktag))] 
-                                         frame)))]
-    (header head
-     tag->tagged-frame
-     (fn [[tag body]] tag))))
-
-(defcodec raw
-  (string :utf-8))
-
-(defcodec compressed
-  (repeated :ubyte :prefix :none))
-
-(defcodec inner-frame
-  (tagged :ubyte
-          {:COMPRESSED compressed
-           :ANY        raw})) ;; Fall through to string if not compressed
-
-(defcodec frame
-  (finite-frame
-    (prefix 
-      :int32
-      inc
-      dec)
-    inner-frame))
+(def frame (finite-frame
+              (prefix 
+               :int32
+              inc
+              dec)
+            inner))
 
 ;; Utility functions
 (defn agent-error-handler
@@ -211,7 +190,7 @@
   (let [msg (json/parse-string body (fn [k] (keyword k)))
         cmd (msg :method)
         key (msg :key)]
-    ; (print "Handing MSG" cmd key)
+    ; (println "Handing MSG" cmd (msg :command) key)
     (condp = cmd
       "dbsync-offer" :>>  (fn [_] (let [host (get-peer-data data peer :host)
                                         port (get-peer-data data peer :port)]
@@ -227,7 +206,7 @@
   "Uncompresses the tcp request that has been compressed with zlib plus 4-byte big-endian size header.
    Returns the uncompressed bytes inflated into a utf-8 string."
    [bytes]
-   (String. (utils/inflate (Arrays/copyOfRange (byte-array bytes) 4 (count bytes))) (java.nio.charset.Charset/forName "utf-8")))
+   (String. (byte-array (utils/inflate (Arrays/copyOfRange bytes 4 (count bytes)))) (java.nio.charset.Charset/forName "utf-8")))
 
 (defn get-tcp-handler
   "Handles the TCP message for a specific peer"
@@ -261,8 +240,8 @@
             (add-peer-data! data foreign-dbid :host ip)
             (add-peer-data! data foreign-dbid :port port))
           (lamina/receive-all ch (get-tcp-handler data ch foreign-dbid))
-          (lamina/enqueue ch handshake-msg)))
-          ; (if (is-dbsync-connection? ch) ;; HACK for development only, force fetch of all dbops
+          (lamina/enqueue ch handshake-msg)
+          ; (if (= ch (get-in @data [:dbsync-connections foreign-dbid])) ;; HACK for development only, force fetch of all dbops
             ; (lamina/enqueue ch (generate-json {:method "fetchops" :lastop ""})))))
         (fn [ch]
           ;; Failed
