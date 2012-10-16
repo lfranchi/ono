@@ -42,7 +42,18 @@
                                                                 (-> pd
                                                                     :control-connections
                                                                     deref
-                                                                    (get 3)))))
+                                                                    (get 3)))
+        (add-connection! pd :dbsync-connections 77 :connt) => (fn [pd]
+                                                                (-> pd
+                                                                    :dbsync-connections
+                                                                    deref
+                                                                    (get 77)))
+        (add-peer-info! pd 83 :host "myhost") => (fn [pd]
+                                                                (-> pd
+                                                                    :peer-info
+                                                                    deref
+                                                                    (get 83)
+                                                                    (get :host)))))
 
 ;; Compression
 
