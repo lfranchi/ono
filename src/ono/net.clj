@@ -58,43 +58,58 @@
 ;;                                      :sourceid id}}
 ;; }
 
-;; Helper functions for manipulating opaque data structure
-(defn set-udp-socket!
-  "Sets the udp socket for this network connection
-   to listen on the given port"
-   [data port]
-   (swap! data assoc :udp-socket (DatagramSocket. port))
-   data)
+(defprotocol IPeerData
+  (set-udp-socket [data port]
+    "Sets the udp socket for this network connection
+   to listen on the given port")
+  (get-udp-socket [data]
+    "Returns the UDP socket that is in use")
+  (add-connection! [data connection-type peer channel]
+    "Adds a connection of the desired type for the given peer, returning the new
+   opaque data structure")
+  (get-connection [data connection-type peer]
+    "Returns a connection channel for the desired type and peer")
+  (add-peer-info! [data peerid key value]
+    "Adds a key/value pair to the peer data structure, returning the
+   modified opaque atom")
+  (get-peer-info [data peerid key]
+    "Get a piece of metadata associated with the desired peer"))
 
-(defn get-udp-socket
-  "Returns the UDP socket that is in use"
-  [data]
-  (@data :udp-socket))
+(defrecord PeerData [udp-socket control-connections
+                     dbsync-connections peer-info]
+  IPeerData
+  (set-udp-socket [data port]
+    (assoc data :udp-socket (DatagramSocket. port)))
 
-(defn add-connection!
-  "Adds a connection of the desired type for the given peer, returning the new
-   opaque data structure"
-  [data connection-type peer channel]
-  (swap! data assoc-in [connection-type peer] channel)
-  data)
+  (get-udp-socket [data]
+    udp-socket)
 
-(defn get-connection
-  "Returns a connection channel for the desired type and peer"
-  [data connection-type peer]
-  (get-in @data [connection-type peer]))
+  (add-connection! [data connection-type peer channel]
+    (let [connection-map (data connection-type)]
+      (swap! connection-map assoc peer channel))
+    data)
 
-(defn add-peer-data!
-  "Adds a key/value pair to the peer data structure, returning the
-   modified opaque atom"
-   [data peerid key value]
-   (swap! data assoc-in [:known-peers peerid key] value)
-   data)
+  (get-connection [data connection-type peer]
+    (-> data connection-type deref (get peer)))
 
-(defn get-peer-data
-  "Get a piece of metadata associated with the desired peer"
-  [data peerid key]
-  (get-in @data [:known-peers peerid key]))
+  (add-peer-info! [data peerid key value]
+    (swap! peer-info assoc-in [peerid key] value)
+    data)
 
+  (get-peer-info [data peerid key]
+    (-> @peer-info
+        (get peerid)
+        (get key))))
+
+(defn peer-data
+  "Return a new PeerData record with default values, unless they are passed in."
+  [& {:keys [udp-socket control-connections
+             dbsync-connections peer-info] :as pd}]
+  (let [defaults {:udp-socket nil
+                  :control-connections (atom {})
+                  :dbsync-connections (atom {})
+                  :peer-info (atom {})}]
+    (map->PeerData (merge defaults pd))))
 
 ;; Gloss frame definitions
 (def inner (compile-frame
@@ -124,7 +139,7 @@
 (defn source-for-peer
   "Returns the sourceid for a given peer"
   [data peer]
-  (get-peer-data data peer :sourceid))
+  (get-peer-info data peer :sourceid))
 
 (defn generate-json
   "Generates a vector to be serialized from a map"
@@ -194,8 +209,8 @@
         key (msg :key)]
     ; (println "Handing MSG" cmd (msg :command) key)
     (condp = cmd
-      "dbsync-offer" :>>  (fn [_] (let [host (get-peer-data data peer :host)
-                                        port (get-peer-data data peer :port)]
+      "dbsync-offer" :>>  (fn [_] (let [host (get-peer-info data peer :host)
+                                        port (get-peer-info data peer :port)]
                                     (add-peer-connection! data host port peer key :dbsync-connections)))
       "fetchops"     :>>  (fn [_] (send-ops-from ch nil (msg :lastop)))
       (print))
@@ -238,9 +253,9 @@
                                                               ;; if this is our first connection (and thus controlconnection)
                                                               ;; by testing for existence of this peer in the connection map
           (add-connection! data connection-type foreign-dbid ch)
-          (when-not (get-peer-data data foreign-dbid :host)
-            (add-peer-data! data foreign-dbid :host ip)
-            (add-peer-data! data foreign-dbid :port port))
+          (when-not (get-peer-info data foreign-dbid :host)
+            (add-peer-info! data foreign-dbid :host ip)
+            (add-peer-info! data foreign-dbid :port port))
           (lamina/receive-all ch (get-tcp-handler data ch foreign-dbid))
           (lamina/enqueue ch handshake-msg)))
           ; (if (= ch (get-in @data [:dbsync-connections foreign-dbid])) ;; HACK for development only, force fetch of all dbops
@@ -269,7 +284,7 @@
                 (when-not (get-connection data :control-connections foreign-dbid)
                   ;; Keep track of each peer by a sourceid. That will be used in the db
                   (let [sourceid (ono.db/get-or-insert-source! foreign-dbid ip)]
-                    (add-peer-data! data foreign-dbid :sourceid sourceid)
+                    (add-peer-info! data foreign-dbid :sourceid sourceid)
                     (add-peer-connection! data ip port foreign-dbid "whitelist" :control-connections)))))))
    (send udp-listener listen data))
 
@@ -278,7 +293,7 @@
     UDP broacasts"
     []
     ; (reset! udp-sock (DatagramSocket. zeroconf-port))
-    (let [opaque-data (set-udp-socket! (atom {}) zeroconf-port)]
+    (let [opaque-data (set-udp-socket (peer-data) zeroconf-port)]
       ; (println "Beginning to listen on port " zeroconf-port "data:" (type opaque-data))
       (set-error-handler! udp-listener agent-error-handler)
       (send-off udp-listener listen opaque-data)
