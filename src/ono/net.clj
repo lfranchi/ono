@@ -20,6 +20,8 @@
 (def dgram-size 16384)
 (def udp-listener (agent nil))
 
+(def ping-agent (agent nil))
+
 ;; TCP protocol
 (def tcp-port 55555)
 (def flags {:RAW        1
@@ -97,7 +99,7 @@
 
 
 ;; Gloss frame definitions
-(def inner (compile-frame 
+(def inner (compile-frame
                [:ubyte (repeated :byte :prefix :none)]
                (fn [[flag body]] (let [b (if (test-flag flag (flags :COMPRESSED))
                                         body
@@ -109,7 +111,7 @@
                                    [flag b]))))
 
 (def frame (finite-frame
-              (prefix 
+              (prefix
                :int32
               inc
               dec)
@@ -228,7 +230,7 @@
     (lamina/on-realized (tcp/tcp-client {:host ip :port (Integer/parseInt port) :frame frame})
       (fn [ch]
         ;; Connection suceeded, here's our channel
-        (let [handshake-msg (get-handshake-msg data foreign-dbid :control-connections key)] 
+        (let [handshake-msg (get-handshake-msg data foreign-dbid :control-connections key)]
                                                               ;; Get the handshake message before we add the
                                                               ;; peer to connection-map, because we need to check
                                                               ;; if this is our first connection (and thus controlconnection)
