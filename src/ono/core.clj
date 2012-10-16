@@ -9,38 +9,53 @@
     (:gen-class))
 
 ;; Constants
-(def configDir (str (System/getProperty "user.home") "/.ono"))
-(def confFile (str configDir "/config"))
-(def dbFile (str configDir "/db.sqlite3"))
-(def supportedSuffixes #{".mp3" ".flac" ".ogg" ".mp4"})
 
-;; Globals
-(def config (ref {}))
+(defn constants-map
+  "Map of constants"
+  []
+  (let [confDir (str (System/getProperty "user.home") "/.ono")]
+    {:confDir   confDir
+     :confFile  (str confDir "/config.json")
+     :dbFile    (str confDir "/db.sqlite3")}))
 
-(defn- setup
-    "Loads configuration and database"
-    []
+(defn filetype-supported?
+  "Returns whether or not the desired extension is supported"
+  [extension]
+  (contains? #{".mp3" ".flac" ".ogg" ".mp4"} extension))
+
+(defn- setup!
+    "Loads configuration and database from defaults
+
+     Expects :confFile, :confDir and :dbFile."
+    [{:keys [confFile confDir dbFile]}]
     (org.apache.log4j.BasicConfigurator/configure)
 
     ;; Create files if they don't exist yet
-    (if (not (fs/exists? configDir))
-        (fs/mkdir configDir))
-    (if (not (fs/exists? confFile))
+    (if-not (fs/exists? confDir)
+        (fs/mkdir confDir))
+    (if-not (fs/exists? confFile)
         (fs/create (fs/file confFile)))
-    (dosync
-        (ref-set config (json/parse-string (slurp confFile))))
 
-    (db/setupdb dbFile))
+    (db/setupdb dbFile)
+    (net/start-udp)
+
+    ;; jaudiotagger is super verbose on stderr
+    (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null"))))
+
+(defn load-config
+  "Loads the configuration from the config file"
+  [file]
+  (json/parse-string (slurp file)))
 
 (defn- extractID3
     "Extracts basic ID3 info from a file"
     [f]
-    (if (contains? supportedSuffixes (last (fs/split-ext f)))
+    (when (filetype-supported? (last (fs/split-ext f)))
         (let [fd (fs/file f)
               audio (org.jaudiotagger.audio.AudioFileIO/read fd)
               tag (.getTag audio)
               header (.getAudioHeader audio)]
-            {:track       (.getFirst tag org.jaudiotagger.tag.FieldKey/TITLE)
+            { :track      (.getFirst tag org.jaudiotagger.tag.FieldKey/TITLE)
               :artist     (.getFirst tag org.jaudiotagger.tag.FieldKey/ARTIST)
               :album      (.getFirst tag org.jaudiotagger.tag.FieldKey/ALBUM)
               :year       (.getFirst tag org.jaudiotagger.tag.FieldKey/YEAR)
@@ -102,10 +117,7 @@ search \"track\" \"artist\":      Search for a desired track/artist pair"))
               :default   #(println "No such command!")))
 
 (defn -main [& args]
-    (setup)
-     ;; jaudiotagger is super verbose on stderr
-    (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null")))
-    (net/start-udp)
+    (setup! (constants-map))
     (println "Welcome to Ono.")
     (while true
         (print "> ")
