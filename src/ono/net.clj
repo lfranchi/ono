@@ -85,12 +85,14 @@
     udp-socket)
 
   (add-connection! [data connection-type peer channel]
-    (let [connection-map (data connection-type)]
+    (let [connection-map (connection-type data)]
       (swap! connection-map assoc peer channel))
     data)
 
   (get-connection [data connection-type peer]
-    (-> data connection-type deref (get peer)))
+    (if-let [conns (-> data connection-type)]
+      (get @conns peer)
+      nil))
 
   (add-peer-info! [data peerid key value]
     (swap! peer-info assoc-in [peerid key] value)
