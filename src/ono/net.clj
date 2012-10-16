@@ -95,14 +95,13 @@
   [data peerid key]
   (get-in @data [:known-peers peerid key]))
 
-(def ping-agent (agent nil))
 
 ;; Gloss frame definitions
 (def inner (compile-frame 
                [:ubyte (repeated :byte :prefix :none)]
                (fn [[flag body]] (let [b (if (test-flag flag (flags :COMPRESSED))
                                         body
-                                        (.getBytes body))]
+                                        (.getBytes body (java.nio.charset.Charset/forName "utf-8")))]
                                    [flag b]))
                (fn [[flag body]] (let [b (if (test-flag flag (flags :COMPRESSED))
                                           (byte-array body)
@@ -263,7 +262,8 @@
                     foreign-dbid (nth parts 2)]
                 ;; Initial setup in the control-connection uses a magic "whitelist" key
                 ;; Make sure we are not already connected
-                (when-not (get-connection data :control-connections foreign-dbid) ;; Keep track of each peer by a sourceid. That will be used in the db
+                (when-not (get-connection data :control-connections foreign-dbid)
+                  ;; Keep track of each peer by a sourceid. That will be used in the db
                   (let [sourceid (ono.db/get-or-insert-source! foreign-dbid ip)]
                     (add-peer-data! data foreign-dbid :sourceid sourceid)
                     (add-peer-connection! data ip port foreign-dbid "whitelist" :control-connections)))))))
