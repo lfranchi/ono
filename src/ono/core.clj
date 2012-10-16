@@ -87,7 +87,7 @@
     (~default)))
 
 ;; Scanner
-(defn- scan
+(defn- scan!
     "Scans a desired folder recursively for any audio files we can recognize.
      Parses the ID3 tags and inserts into the database."
      [folder]
@@ -112,7 +112,7 @@ scan [folder]:                Scan the folder for music
 numfiles:                     Return how many files are in the db
 search \"track\" \"artist\":      Search for a desired track/artist pair"))
 
-                                 "scan"     (fn [args] (scan (first args)))
+                                 "scan"     (fn [args] (scan! (first args)))
                                  "numfiles" (fn [_] (println (db/numfiles)))}
               :default   #(println "No such command!")))
 
