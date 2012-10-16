@@ -20,8 +20,6 @@
 (def dgram-size 16384)
 (def udp-listener (agent nil))
 
-(def ping-agent (agent nil))
-
 ;; TCP protocol
 (def tcp-port 55555)
 (def flags {:RAW        1
@@ -151,12 +149,16 @@
 (defn ping-peers
   "Sends a PING message every 10 minutes to any
    active peer connection"
-   [data]
-   (fn [_]
-     (doseq [ch (vals (get @data :control-connections))]
-              (lamina/enqueue ch [(flags :PING) ""]))
-     (. Thread (sleep 5000))
-     (send-off ping-agent (ping-peers data))))
+  [data]
+  (let [ping-agent (agent nil)]
+    (set-error-handler! ping-agent agent-error-handler)
+    (letfn [(ping-fn [_]
+              (doseq [ch (vals (get @data :control-connections))]
+                (lamina/enqueue ch [(flags :PING) ""]))
+              (. Thread (sleep 5000))
+              (send-off ping-agent ping-fn))]
+      (send-off ping-agent ping-fn))
+    ping-agent))
 
 (defn handle-handshake-msg
   "Handles the handshake after an initial SETUP message
@@ -279,9 +281,8 @@
     (let [opaque-data (set-udp-socket! (atom {}) zeroconf-port)]
       ; (println "Beginning to listen on port " zeroconf-port "data:" (type opaque-data))
       (set-error-handler! udp-listener agent-error-handler)
-      (set-error-handler! ping-agent agent-error-handler)
       (send-off udp-listener listen opaque-data)
-      (send-off ping-agent (ping-peers opaque-data))
+      (ping-peers opaque-data)
       opaque-data))
 
 
