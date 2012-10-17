@@ -46,18 +46,6 @@
   [x y]
   (not (zero? (bit-and x y))))
 
-;; Main data structure. Peerid is the dbid of a peer's database:
-;; {
-;;     :udp-socket           udp-socket
-;;     :control-connections {peerid    channel,
-;;                           peerid    channel}
-;;     :dbsync-connections  {peerid    channel,
-;;                           peerid    channel}
-;;     :known-peers         {peerid    {:host    "host",
-;;                                      :port     "port",
-;;                                      :sourceid id}}
-;; }
-
 (defprotocol IPeerData
   (set-udp-socket [data port]
     "Sets the udp socket for this network connection
