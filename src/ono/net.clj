@@ -170,7 +170,7 @@
   (let [ping-agent (agent nil)]
     (set-error-handler! ping-agent agent-error-handler)
     (letfn [(ping-fn [_]
-              (doseq [ch (vals (get @data :control-connections))]
+              (doseq [ch (vals (deref (get data :control-connections)))]
                 (lamina/enqueue ch [(flags :PING) ""]))
               (. Thread (sleep 5000))
               (send-off ping-agent ping-fn))]
