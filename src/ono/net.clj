@@ -152,7 +152,7 @@
 
 (defn get-handshake-msg
   "Returns a JSON handshake msg from zeroconf peers"
-  [data foreign-dbid connection-type key]
+  [data foreign-dbid connection-type key my-dbid]
   (let [main-msg {:conntype "accept-offer"
                          :key key
                          :port tcp-port}]
@@ -160,8 +160,8 @@
           ;;  or a secondary connection
           ; (println "ARE WE SENDING FIRST MSG?" foreign-dbid connection-type (get-connection data connection-type foreign-dbid))
           (if (get-connection data connection-type foreign-dbid)
-            (generate-json (assoc main-msg :controlid @db/dbid)) ;; All subsequent (dbsync and stream connections) require controlid
-            (generate-json (assoc main-msg :nodeid @db/dbid))))) ;; ControlConnection (first connection) requires nodeid
+            (generate-json (assoc main-msg :controlid my-dbid)) ;; All subsequent (dbsync and stream connections) require controlid
+            (generate-json (assoc main-msg :nodeid my-dbid))))) ;; ControlConnection (first connection) requires nodeid
 
 (defn ping-peers
   "Sends a PING message every 10 minutes to any
@@ -249,7 +249,7 @@
     (lamina/on-realized (tcp/tcp-client {:host ip :port (Integer/parseInt port) :frame frame})
       (fn [ch]
         ;; Connection suceeded, here's our channel
-        (let [handshake-msg (get-handshake-msg data foreign-dbid :control-connections key)]
+        (let [handshake-msg (get-handshake-msg data foreign-dbid :control-connections key @db/dbid)]
                                                               ;; Get the handshake message before we add the
                                                               ;; peer to connection-map, because we need to check
                                                               ;; if this is our first connection (and thus controlconnection)
