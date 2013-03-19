@@ -84,7 +84,7 @@
                             (for [k# (keys ~matches) :when (starts-with? ~input k#)] k#))]
     ((first (vals (select-keys ~matches matching-keys#)))
       (rest (clojure.string/split ~input #" ")))
-    (~default)))
+    (~default ~input)))
 
 ;; Scanner
 (defn- scan!
@@ -104,7 +104,7 @@
   [input]
   (parse-args input
               :match-list {
-                                 "help" (fn [_] (println 
+                                 "help" (fn [_] (println
 "Supported commands:
 
 help:                         Show this help message
@@ -113,8 +113,10 @@ numfiles:                     Return how many files are in the db
 search \"track\" \"artist\":      Search for a desired track/artist pair"))
 
                                  "scan"     (fn [args] (scan! (first args)))
-                                 "numfiles" (fn [_] (println (db/numfiles)))}
-              :default   #(println "No such command!")))
+                                 "numfiles" (fn [_] (println (db/numfiles)))
+                         }
+              :default   #(when-not (= "" %)
+                            (println "No such command!"))))
 
 (defn -main [& args]
     (setup! (constants-map))
