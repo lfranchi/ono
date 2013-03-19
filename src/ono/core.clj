@@ -23,7 +23,7 @@
   [extension]
   (contains? #{".mp3" ".flac" ".ogg" ".mp4"} extension))
 
-(defn- setup!
+(defn setup!
     "Loads configuration and database from defaults
 
      Expects :confFile, :confDir and :dbFile."
@@ -36,11 +36,11 @@
     (if-not (fs/exists? confFile)
         (fs/create (fs/file confFile)))
 
-    (db/setupdb dbFile)
-    (net/start-udp)
-
     ;; jaudiotagger is super verbose on stderr
-    (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null"))))
+    (System/setErr (new java.io.PrintStream (new java.io.FileOutputStream "/dev/null")))
+
+    (db/setupdb dbFile)
+    (net/start-udp))
 
 (defn load-config
   "Loads the configuration from the config file"
