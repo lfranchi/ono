@@ -184,7 +184,7 @@
    (if-let [ops (ono.db/get-ops-since source lastop)]
      (let [myflags #(bit-or (flags :DBOP) (if (= % (last ops)) 0 (flags :FRAGMENT)))]
        (doseq [cmd ops]
-         (println "SENDING DBOP:" (cmd :guid) (cmd :command) (bit-or (flags :JSON) (flags :DBOP) (myflags cmd)) "body:" (cmd :json))
+         ;(println "SENDING DBOP:" (cmd :guid) (cmd :command) (bit-or (flags :JSON) (flags :DBOP) (myflags cmd)) "body:" (cmd :json))
          (lamina/enqueue ch [(bit-or (flags :JSON) (flags :DBOP) (myflags cmd))
                              (cmd :json)]))))
      (lamina/enqueue ch [(flags :DBOP) "ok"])) ;; else if there are no new ops, send OK message
